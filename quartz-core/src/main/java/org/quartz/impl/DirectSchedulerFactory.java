@@ -172,7 +172,6 @@ public class DirectSchedulerFactory implements SchedulerFactory {
         throws SchedulerException {
         SimpleThreadPool threadPool = new SimpleThreadPool(maxThreads,
                 Thread.NORM_PRIORITY);
-        threadPool.initialize();
         JobStore jobStore = new RAMJobStore();
         this.createScheduler(threadPool, jobStore);
     }
@@ -464,7 +463,7 @@ public class DirectSchedulerFactory implements SchedulerFactory {
 
         // Fire everything up
         // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
+        threadPool.setInstanceName(schedulerName);
         threadPool.initialize();
         
         QuartzSchedulerResources qrs = new QuartzSchedulerResources();

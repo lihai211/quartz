@@ -15,11 +15,15 @@
  */
 package org.quartz.impl;
 
+import java.lang.reflect.Field;
 import java.util.Collections;
+import java.util.List;
 
 import junit.framework.TestCase;
 
 import org.quartz.Scheduler;
+import org.quartz.core.QuartzScheduler;
+import org.quartz.core.QuartzSchedulerResources;
 import org.quartz.simpl.RAMJobStore;
 import org.quartz.simpl.SimpleThreadPool;
 import org.quartz.spi.ClassLoadHelper;
@@ -54,5 +58,26 @@ public class DirectSchedulerFactoryTest extends TestCase {
         scheduler.shutdown();
         
         assertEquals("TestPlugin|MyScheduler|start|shutdown", result.toString());
+    }
+
+    public void testThreadName() throws Throwable {
+        DirectSchedulerFactory.getInstance().createVolatileScheduler(4);
+        Scheduler scheduler = DirectSchedulerFactory.getInstance().getScheduler();
+        QuartzScheduler qs = getField(scheduler, "sched");
+        QuartzSchedulerResources qsr = getField(qs, "resources");
+        ThreadPool tp = qsr.getThreadPool();
+        List<?> list = getField(tp,"workers");
+        Object workerThread = list.get(0);
+        String workerThreadName = workerThread.toString();
+        assertFalse(workerThreadName.contains("null"));
+        assertTrue(workerThreadName.contains(scheduler.getSchedulerName()));
+
+    }
+
+    <T> T getField(Object obj, String fieldName) throws Exception {
+        Field field = obj.getClass().getDeclaredField(fieldName);
+        field.setAccessible(true);
+        T result = (T)field.get(obj);
+        return result;
     }
 }

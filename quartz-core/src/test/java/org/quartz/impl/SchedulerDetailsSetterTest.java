@@ -47,7 +47,7 @@ public class SchedulerDetailsSetterTest extends TestCase {
         directFactory.createScheduler(new MyThreadPool(), new MyJobStore());
 
         assertEquals(5, instanceIdCalls.get());
-        assertEquals(5, instanceNameCalls.get());
+        assertEquals(6, instanceNameCalls.get());
     }
 
     public void testMissingSetterMethods() throws SchedulerException  {
