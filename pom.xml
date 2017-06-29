@@ -75,9 +75,9 @@
     <log4j.version>1.2.16</log4j.version>
     <maven-forge-plugin.version>1.1.9</maven-forge-plugin.version>
     <gmaven-plugin.version>1.4</gmaven-plugin.version>
-    <checkstyle-suppressions-file>suppressions.xml</checkstyle-suppressions-file>
-    <checkstyle-config-file>checkstyle.xml</checkstyle-config-file>
-    <checkstyle-header-file>header.txt</checkstyle-header-file>
+    <checkstyle-suppressions-file>${session.executionRootDirectory}/checkstyle/src/main/resources/suppressions.xml</checkstyle-suppressions-file>
+    <checkstyle-config-file>${session.executionRootDirectory}/checkstyle/src/main/resources/checkstyle.xml</checkstyle-config-file>
+    <checkstyle-header-file>${session.executionRootDirectory}/checkstyle/src/main/resources/header.txt</checkstyle-header-file>
 
     <terracotta-snapshots-url>http://nexus.terracotta.eur.ad.sag/content/repositories/terracotta-snapshots</terracotta-snapshots-url>
     <terracotta-staging-url>http://nexus.terracotta.eur.ad.sag/content/repositories/terracotta-staging</terracotta-staging-url>
@@ -227,13 +227,6 @@
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-checkstyle-plugin</artifactId>
           <version>2.9.1</version>
-          <dependencies>
-            <dependency>
-              <groupId>org.quartz-scheduler.internal</groupId>
-              <artifactId>quartz-checkstyle</artifactId>
-              <version>${project.version}</version>
-            </dependency>
-          </dependencies>					
           <configuration>
             <encoding>UTF-8</encoding>          
             <configLocation>${checkstyle-config-file}</configLocation>
