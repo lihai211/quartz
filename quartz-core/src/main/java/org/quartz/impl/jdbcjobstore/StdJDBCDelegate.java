@@ -29,21 +29,10 @@ import java.io.NotSerializableException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.math.BigDecimal;
-import java.sql.Blob;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
+import java.text.MessageFormat;
+import java.util.*;
 import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
 
 import org.quartz.Calendar;
 import org.quartz.Job;
@@ -1089,6 +1078,7 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
             ps.setInt(13, trigger.getMisfireInstruction());
             setBytes(ps, 14, baos);
             ps.setInt(15, trigger.getPriority());
+            ps.setString(16, trigger.getRequiredCapability());
             
             insertResult = ps.executeUpdate();
             
@@ -1209,14 +1199,15 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
             ps.setString(10, trigger.getCalendarName());
             ps.setInt(11, trigger.getMisfireInstruction());
             ps.setInt(12, trigger.getPriority());
+            ps.setString(13, trigger.getRequiredCapability());
 
             if(updateJobData) {
-                setBytes(ps, 13, baos);
+                setBytes(ps, 14, baos);
+                ps.setString(15, trigger.getKey().getName());
+                ps.setString(16, trigger.getKey().getGroup());
+            } else {
                 ps.setString(14, trigger.getKey().getName());
                 ps.setString(15, trigger.getKey().getGroup());
-            } else {
-                ps.setString(13, trigger.getKey().getName());
-                ps.setString(14, trigger.getKey().getGroup());
             }
 
             insertResult = ps.executeUpdate();
@@ -1772,6 +1763,7 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
                 String calendarName = rs.getString(COL_CALENDAR_NAME);
                 int misFireInstr = rs.getInt(COL_MISFIRE_INSTRUCTION);
                 int priority = rs.getInt(COL_PRIORITY);
+                String requiredCapability = rs.getString(COL_REQUIRED_CAP);
 
                 Map<?, ?> map = null;
                 if (canUseProperties()) {
@@ -1834,7 +1826,8 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
                         .withIdentity(triggerKey)
                         .modifiedByCalendar(calendarName)
                         .withSchedule(triggerProps.getScheduleBuilder())
-                        .forJob(jobKey(jobName, jobGroup));
+                        .forJob(jobKey(jobName, jobGroup))
+                        .requiredCapability(requiredCapability);
     
                     if (null != map) {
                         tb.usingJobData(new JobDataMap(map));
@@ -2559,18 +2552,18 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
      * @param conn
      *          the DB Connection
      * @param noLaterThan
-     *          highest value of <code>getNextFireTime()</code> of the triggers (exclusive)
+     *          highest value of <code>getNextFireTime()</code> of the triggers (exclusive) TODO doesn't match the SQL code
      * @param noEarlierThan 
-     *          highest value of <code>getNextFireTime()</code> of the triggers (inclusive)
+     *          lowest value of <code>getNextFireTime()</code> of the triggers (inclusive)
      *          
      * @return A (never null, possibly empty) list of the identifiers (Key objects) of the next triggers to be fired.
      * 
-     * @deprecated - This remained for compatibility reason. Use {@link #selectTriggerToAcquire(Connection, long, long, int)} instead. 
+     * @deprecated - This remained for compatibility reason. Use {@link DriverDelegate#selectTriggerToAcquire(Connection, long, long, int, Collection)} instead.
      */
     public List<TriggerKey> selectTriggerToAcquire(Connection conn, long noLaterThan, long noEarlierThan)
             throws SQLException {
         // This old API used to always return 1 trigger.
-        return selectTriggerToAcquire(conn, noLaterThan, noEarlierThan, 1);
+        return selectTriggerToAcquire(conn, noLaterThan, noEarlierThan, 1, Collections.<String>emptySet());
     }
 
     /**
@@ -2582,21 +2575,35 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
      * @param conn
      *          the DB Connection
      * @param noLaterThan
-     *          highest value of <code>getNextFireTime()</code> of the triggers (exclusive)
-     * @param noEarlierThan 
-     *          highest value of <code>getNextFireTime()</code> of the triggers (inclusive)
-     * @param maxCount 
+     *          highest value of <code>getNextFireTime()</code> of the triggers (exclusive) TODO doesn't match the SQL code
+     * @param noEarlierThan
+     *          lowest value of <code>getNextFireTime()</code> of the triggers (inclusive)
+     * @param maxCount
      *          maximum number of trigger keys allow to acquired in the returning list.
-     *          
+     * @param executionCapabilities
+     *          capabilities of the current node: we select only triggers that have requiredCapability either null or
+     *          matching some of the executionCapabilities
      * @return A (never null, possibly empty) list of the identifiers (Key objects) of the next triggers to be fired.
      */
-    public List<TriggerKey> selectTriggerToAcquire(Connection conn, long noLaterThan, long noEarlierThan, int maxCount)
+    public List<TriggerKey> selectTriggerToAcquire(Connection conn, long noLaterThan, long noEarlierThan, int maxCount,
+            Collection<String> executionCapabilities)
         throws SQLException {
         PreparedStatement ps = null;
         ResultSet rs = null;
         List<TriggerKey> nextTriggers = new LinkedList<TriggerKey>();
         try {
-            ps = conn.prepareStatement(rtp(SELECT_NEXT_TRIGGER_TO_ACQUIRE));
+            StringBuilder executionLimitationClause = new StringBuilder();
+            if (!executionCapabilities.isEmpty()) {
+                executionLimitationClause.append(" OR ").append(COL_REQUIRED_CAP).append(" IN (");
+                for (int i = 0; i < executionCapabilities.size(); i++) {
+                    if (i > 0) {
+                        executionLimitationClause.append(",");
+                    }
+                    executionLimitationClause.append("?");
+                }
+                executionLimitationClause.append(")");
+            }
+            ps = conn.prepareStatement(rtp2(SELECT_NEXT_TRIGGER_TO_ACQUIRE, executionLimitationClause.toString()));
             
             // Set max rows to retrieve
             if (maxCount < 1)
@@ -2606,10 +2613,14 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
             // Try to give jdbc driver a hint to hopefully not pull over more than the few rows we actually need.
             // Note: in some jdbc drivers, such as MySQL, you must set maxRows before fetchSize, or you get exception!
             ps.setFetchSize(maxCount);
-            
+
             ps.setString(1, STATE_WAITING);
             ps.setBigDecimal(2, new BigDecimal(String.valueOf(noLaterThan)));
             ps.setBigDecimal(3, new BigDecimal(String.valueOf(noEarlierThan)));
+            int i = 4;
+            for (String capability : executionCapabilities) {
+                ps.setString(i++, capability);
+            }
             rs = ps.executeQuery();
             
             while (rs.next() && nextTriggers.size() <= maxCount) {
@@ -3027,6 +3038,16 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
      */
     protected final String rtp(String query) {
         return Util.rtp(query, tablePrefix, getSchedulerNameLiteral());
+    }
+
+    /**
+     * Replace the table prefix ({0}), scheduler name ({1}), and additional third parameter ({2}) in query.
+     * @param query the unsubstitued query
+     * @param third value of the third parameter
+     * @return
+     */
+    protected final String rtp2(String query, String third) {
+        return MessageFormat.format(query, tablePrefix, getSchedulerNameLiteral(), third);
     }
 
     private String schedNameLiteral = null;

@@ -22,14 +22,7 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import org.quartz.Calendar;
 import org.quartz.Job;
@@ -102,6 +95,10 @@ public abstract class JobStoreSupport implements JobStore, Constants {
     protected String instanceId;
 
     protected String instanceName;
+
+    private Set<String> executionCapabilitiesParsed = new HashSet<>();
+
+    protected String executionCapabilities;             // comma-separated values (in order to be settable by properties)
     
     protected String delegateClassName;
 
@@ -256,6 +253,29 @@ public abstract class JobStoreSupport implements JobStore, Constants {
      */
     public void setInstanceName(String instanceName) {
         this.instanceName = instanceName;
+    }
+
+    public Collection<String> getExecutionCapabilitiesParsed() {
+        return Collections.unmodifiableSet(executionCapabilitiesParsed);
+    }
+
+    public String getExecutionCapabilities() {
+        return executionCapabilities;
+    }
+
+    // invoked by reflection
+    // stringValue contains capabilities separated by comma
+    public void setExecutionCapabilities(String stringValue) {
+        executionCapabilities = stringValue;
+        executionCapabilitiesParsed.clear();
+        if (stringValue != null) {
+            for (String capability : stringValue.split(",")) {
+                capability = capability.trim();
+                if (!capability.isEmpty()) {
+                    executionCapabilitiesParsed.add(capability);
+                }
+            }
+        }
     }
 
     public void setThreadPoolSize(final int poolSize) {
@@ -2841,7 +2861,7 @@ public abstract class JobStoreSupport implements JobStore, Constants {
         do {
             currentLoopCount ++;
             try {
-                List<TriggerKey> keys = getDelegate().selectTriggerToAcquire(conn, noLaterThan + timeWindow, getMisfireTime(), maxCount);
+                List<TriggerKey> keys = getDelegate().selectTriggerToAcquire(conn, noLaterThan + timeWindow, getMisfireTime(), maxCount, getExecutionCapabilitiesParsed());
                 
                 // No trigger is ready to fire yet.
                 if (keys == null || keys.size() == 0)

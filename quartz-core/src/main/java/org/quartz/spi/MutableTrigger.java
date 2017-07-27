@@ -125,4 +125,9 @@ public interface MutableTrigger extends Trigger {
 
     public Object clone();
 
+    /**
+     * Execution capability that must be possessed by a node in order to be able to acquire this trigger.
+     * If null, any node can do that.
+     */
+    void setRequiredCapability(String requiredCapability);
 }
