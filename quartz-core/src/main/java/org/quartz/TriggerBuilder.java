@@ -71,6 +71,7 @@ public class TriggerBuilder<T extends Trigger> {
     private String calendarName;
     private JobKey jobKey;
     private JobDataMap jobDataMap = new JobDataMap();
+    private String requiredCapability;
     
     private ScheduleBuilder<?> scheduleBuilder = null;
     
@@ -113,7 +114,8 @@ public class TriggerBuilder<T extends Trigger> {
         
         if(!jobDataMap.isEmpty())
             trig.setJobDataMap(jobDataMap);
-        
+
+        trig.setRequiredCapability(requiredCapability);
         return (T) trig;
     }
 
@@ -410,6 +412,18 @@ public class TriggerBuilder<T extends Trigger> {
             newJobDataMap.put(dataKey, jobDataMap.get(dataKey));
         }
         jobDataMap = newJobDataMap; // set new map as the map to use
+        return this;
+    }
+
+    /**
+     * Set the node's execution capability that is required for the Trigger to be acquired
+     * at a given node.
+     * @param requiredCapability the required capability
+     * @return the updated TriggerBuilder
+     */
+
+    public TriggerBuilder<T> requiredCapability(String requiredCapability) {
+        this.requiredCapability = requiredCapability;
         return this;
     }
     

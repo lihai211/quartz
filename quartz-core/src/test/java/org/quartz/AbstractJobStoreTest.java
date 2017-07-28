@@ -40,8 +40,8 @@ import static org.junit.Assert.assertThat;
  * as part of issue QUARTZ-306.
  */
 public abstract class AbstractJobStoreTest extends TestCase {
-    private JobStore fJobStore;
-    private JobDetailImpl fJobDetail;
+    protected JobStore fJobStore;
+    protected JobDetailImpl fJobDetail;
     private SampleSignaler fSignaler;
 
     @SuppressWarnings("deprecation")

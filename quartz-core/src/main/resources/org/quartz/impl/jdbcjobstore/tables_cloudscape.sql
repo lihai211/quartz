@@ -32,6 +32,7 @@ create table qrtz_triggers(
 	next_fire_time longint,
 	prev_fire_time longint,
 	priority integer,
+	required_cap varchar(200),
 	trigger_state varchar(16) not null,
 	trigger_type varchar(8) not null,
 	start_time longint not null,

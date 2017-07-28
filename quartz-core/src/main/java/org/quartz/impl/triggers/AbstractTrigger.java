@@ -98,6 +98,8 @@ public abstract class AbstractTrigger<T extends Trigger> implements OperableTrig
 
     private transient TriggerKey key = null;
 
+    private String requiredCapability = null;
+
     /*
     * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     *
@@ -653,6 +655,14 @@ public abstract class AbstractTrigger<T extends Trigger> implements OperableTrig
      * </p>
      */
     public abstract Date getFinalFireTime();
+
+    public String getRequiredCapability() {
+        return requiredCapability;
+    }
+
+    public void setRequiredCapability(String requiredCapability) {
+        this.requiredCapability = requiredCapability;
+    }
 
     /**
      * <p>

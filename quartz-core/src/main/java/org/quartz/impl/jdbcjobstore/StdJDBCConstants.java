@@ -46,6 +46,10 @@ public interface StdJDBCConstants extends Constants {
     // table prefix substitution string
     String SCHED_NAME_SUBST = "{1}";
 
+    // additional substitution string (currently used for 'required capability' clause
+    // but might be useful for other things in the future)
+    String ADDITIONAL_SUBST = "{2}";
+
     // QUERIES
     String UPDATE_TRIGGER_STATES_FROM_OTHER_STATES = "UPDATE "
             + TABLE_PREFIX_SUBST
@@ -212,8 +216,8 @@ public interface StdJDBCConstants extends Constants {
             + ", " + COL_NEXT_FIRE_TIME + ", " + COL_PREV_FIRE_TIME + ", "
             + COL_TRIGGER_STATE + ", " + COL_TRIGGER_TYPE + ", "
             + COL_START_TIME + ", " + COL_END_TIME + ", " + COL_CALENDAR_NAME
-            + ", " + COL_MISFIRE_INSTRUCTION + ", " + COL_JOB_DATAMAP + ", " + COL_PRIORITY + ") "
-            + " VALUES(" + SCHED_NAME_SUBST + ", ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            + ", " + COL_MISFIRE_INSTRUCTION + ", " + COL_JOB_DATAMAP + ", " + COL_PRIORITY + ", " + COL_REQUIRED_CAP + ") "
+            + " VALUES(" + SCHED_NAME_SUBST + ", ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
     String INSERT_SIMPLE_TRIGGER = "INSERT INTO "
             + TABLE_PREFIX_SUBST + TABLE_SIMPLE_TRIGGERS + " ("
@@ -242,8 +246,9 @@ public interface StdJDBCConstants extends Constants {
             + COL_PREV_FIRE_TIME + " = ?, " + COL_TRIGGER_STATE + " = ?, "
             + COL_TRIGGER_TYPE + " = ?, " + COL_START_TIME + " = ?, "
             + COL_END_TIME + " = ?, " + COL_CALENDAR_NAME + " = ?, "
-            + COL_MISFIRE_INSTRUCTION + " = ?, " + COL_PRIORITY 
-            + " = ? WHERE " 
+            + COL_MISFIRE_INSTRUCTION + " = ?, " + COL_PRIORITY + " = ?, "
+            + COL_REQUIRED_CAP
+            + " = ? WHERE "
             + COL_SCHEDULER_NAME + " = " + SCHED_NAME_SUBST
             + " AND " + COL_TRIGGER_NAME
             + " = ? AND " + COL_TRIGGER_GROUP + " = ?";
@@ -255,7 +260,8 @@ public interface StdJDBCConstants extends Constants {
         + COL_PREV_FIRE_TIME + " = ?, " + COL_TRIGGER_STATE + " = ?, "
         + COL_TRIGGER_TYPE + " = ?, " + COL_START_TIME + " = ?, "
         + COL_END_TIME + " = ?, " + COL_CALENDAR_NAME + " = ?, "
-        + COL_MISFIRE_INSTRUCTION + " = ?, " + COL_PRIORITY + " = ?, " 
+        + COL_MISFIRE_INSTRUCTION + " = ?, " + COL_PRIORITY + " = ?, "
+        + COL_REQUIRED_CAP + " = ?, "
         + COL_JOB_DATAMAP + " = ? WHERE " 
         + COL_SCHEDULER_NAME + " = " + SCHED_NAME_SUBST
         + " AND " + COL_TRIGGER_NAME + " = ? AND " + COL_TRIGGER_GROUP + " = ?";
@@ -513,6 +519,7 @@ public interface StdJDBCConstants extends Constants {
         + COL_SCHEDULER_NAME + " = " + SCHED_NAME_SUBST
         + " AND " + COL_TRIGGER_STATE + " = ? AND " + COL_NEXT_FIRE_TIME + " <= ? " 
         + "AND (" + COL_MISFIRE_INSTRUCTION + " = -1 OR (" +COL_MISFIRE_INSTRUCTION+ " != -1 AND "+ COL_NEXT_FIRE_TIME + " >= ?)) "
+        + "AND (" + COL_REQUIRED_CAP + " IS NULL " + ADDITIONAL_SUBST + ") "
         + "ORDER BY "+ COL_NEXT_FIRE_TIME + " ASC, " + COL_PRIORITY + " DESC";
     
     
