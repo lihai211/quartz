@@ -327,25 +327,28 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
      * 
      * @param conn The DB Connection
      * @param count The most misfired triggers to return, negative for all
-     * @param resultList Output parameter.  A List of 
+     * @param resultList Output parameter.  A List of
      *      <code>{@link org.quartz.utils.Key}</code> objects.  Must not be null.
-     *          
+     * @param executionCapabilities Capabilities of current node. Will skip triggers that require capabilities
+     *                              other than present here.
      * @return Whether there are more misfired triggers left to find beyond
      *         the given count.
      */
-    public boolean hasMisfiredTriggersInState(Connection conn, String state1, 
-        long ts, int count, List<TriggerKey> resultList) throws SQLException {
+    public boolean hasMisfiredTriggersInState(Connection conn, String state1,
+            long ts, int count, List<TriggerKey> resultList,
+            Collection<String> executionCapabilities) throws SQLException {
         PreparedStatement ps = null;
         ResultSet rs = null;
 
         try {
-            ps = conn.prepareStatement(rtp(SELECT_HAS_MISFIRED_TRIGGERS_IN_STATE));
+            ps = conn.prepareStatement(rtp2(SELECT_HAS_MISFIRED_TRIGGERS_IN_STATE, getExecutionLimitationClause(executionCapabilities)));
             ps.setBigDecimal(1, new BigDecimal(String.valueOf(ts)));
             ps.setString(2, state1);
+            setExecutionCapabilitiesParameters(ps, 3, executionCapabilities);
             rs = ps.executeQuery();
 
             boolean hasReachedLimit = false;
-            while (rs.next() && (hasReachedLimit == false)) {
+            while (rs.next() && !hasReachedLimit) {
                 if (resultList.size() == count) {
                     hasReachedLimit = true;
                 } else {
@@ -367,18 +370,21 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
      * Get the number of triggers in the given states that have
      * misfired - according to the given timestamp.
      * </p>
-     * 
+     *
      * @param conn the DB Connection
+     * @param executionCapabilities Capabilities of current node. Will skip triggers that require capabilities
+     *                              other than present here.
      */
     public int countMisfiredTriggersInState(
-            Connection conn, String state1, long ts) throws SQLException {
+            Connection conn, String state1, long ts, Collection<String> executionCapabilities) throws SQLException {
         PreparedStatement ps = null;
         ResultSet rs = null;
 
         try {
-            ps = conn.prepareStatement(rtp(COUNT_MISFIRED_TRIGGERS_IN_STATE));
+            ps = conn.prepareStatement(rtp2(COUNT_MISFIRED_TRIGGERS_IN_STATE, getExecutionLimitationClause(executionCapabilities)));
             ps.setBigDecimal(1, new BigDecimal(String.valueOf(ts)));
             ps.setString(2, state1);
+            setExecutionCapabilitiesParameters(ps, 3, executionCapabilities);
             rs = ps.executeQuery();
 
             if (rs.next()) {
@@ -2592,18 +2598,7 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
         ResultSet rs = null;
         List<TriggerKey> nextTriggers = new LinkedList<TriggerKey>();
         try {
-            StringBuilder executionLimitationClause = new StringBuilder();
-            if (!executionCapabilities.isEmpty()) {
-                executionLimitationClause.append(" OR ").append(COL_REQUIRED_CAP).append(" IN (");
-                for (int i = 0; i < executionCapabilities.size(); i++) {
-                    if (i > 0) {
-                        executionLimitationClause.append(",");
-                    }
-                    executionLimitationClause.append("?");
-                }
-                executionLimitationClause.append(")");
-            }
-            ps = conn.prepareStatement(rtp2(SELECT_NEXT_TRIGGER_TO_ACQUIRE, executionLimitationClause.toString()));
+            ps = conn.prepareStatement(rtp2(SELECT_NEXT_TRIGGER_TO_ACQUIRE, getExecutionLimitationClause(executionCapabilities)));
             
             // Set max rows to retrieve
             if (maxCount < 1)
@@ -2617,10 +2612,7 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
             ps.setString(1, STATE_WAITING);
             ps.setBigDecimal(2, new BigDecimal(String.valueOf(noLaterThan)));
             ps.setBigDecimal(3, new BigDecimal(String.valueOf(noEarlierThan)));
-            int i = 4;
-            for (String capability : executionCapabilities) {
-                ps.setString(i++, capability);
-            }
+            setExecutionCapabilitiesParameters(ps, 4, executionCapabilities);
             rs = ps.executeQuery();
             
             while (rs.next() && nextTriggers.size() <= maxCount) {
@@ -2634,6 +2626,30 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
             closeResultSet(rs);
             closeStatement(ps);
         }      
+    }
+
+    private int setExecutionCapabilitiesParameters(PreparedStatement ps, int startIndex, Collection<String> executionCapabilities)
+            throws SQLException {
+        int i = startIndex;
+        for (String capability : executionCapabilities) {
+            ps.setString(i++, capability);
+        }
+        return i;
+    }
+
+    private String getExecutionLimitationClause(Collection<String> executionCapabilities) {
+        StringBuilder sb = new StringBuilder();
+        if (!executionCapabilities.isEmpty()) {
+            sb.append(" OR ").append(COL_REQUIRED_CAP).append(" IN (");
+            for (int i = 0; i < executionCapabilities.size(); i++) {
+                if (i > 0) {
+                    sb.append(",");
+                }
+                sb.append("?");
+            }
+            sb.append(")");
+        }
+        return sb.toString();
     }
 
     /**

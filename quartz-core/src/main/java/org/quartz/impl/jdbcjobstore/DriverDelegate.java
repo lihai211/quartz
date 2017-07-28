@@ -135,25 +135,29 @@ public interface DriverDelegate {
      * 
      * @param conn the DB Connection
      * @param count the most misfired triggers to return, negative for all
-     * @param resultList Output parameter.  A List of 
-     *      <code>{@link org.quartz.utils.Key}</code> objects.  Must not be null.
-     *          
+     * @param resultList Output parameter.  A List of
+     *      <code>{@link Key}</code> objects.  Must not be null.
+     * @param executionCapabilities Capabilities of current node. Will skip triggers that require capabilities
+     *                              other than present here.
      * @return Whether there are more misfired triggers left to find beyond
      *         the given count.
      */
-    boolean hasMisfiredTriggersInState(Connection conn, String state1, 
-        long ts, int count, List<TriggerKey> resultList) throws SQLException;
+    boolean hasMisfiredTriggersInState(Connection conn, String state1,
+            long ts, int count, List<TriggerKey> resultList,
+            Collection<String> executionCapabilities) throws SQLException;
     
     /**
      * <p>
      * Get the number of triggers in the given state that have
      * misfired - according to the given timestamp.
      * </p>
-     * 
+     *
      * @param conn the DB Connection
+     * @param executionCapabilities Capabilities of current node. Will skip triggers that require capabilities
+     *                              other than present here.
      */
     int countMisfiredTriggersInState(
-        Connection conn, String state1, long ts) throws SQLException;
+            Connection conn, String state1, long ts, Collection<String> executionCapabilities) throws SQLException;
 
     /**
      * <p>

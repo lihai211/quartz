@@ -1005,11 +1005,12 @@ public abstract class JobStoreSupport implements JobStore, Constants {
         List<TriggerKey> misfiredTriggers = new LinkedList<TriggerKey>();
         long earliestNewTime = Long.MAX_VALUE;
         // We must still look for the MISFIRED state in case triggers were left 
-        // in this state when upgrading to this version that does not support it. 
+        // in this state when upgrading to this version that does not support it.
         boolean hasMoreMisfiredTriggers =
             getDelegate().hasMisfiredTriggersInState(
                 conn, STATE_WAITING, getMisfireTime(), 
-                maxMisfiresToHandleAtATime, misfiredTriggers);
+                maxMisfiresToHandleAtATime, misfiredTriggers,
+                    getExecutionCapabilitiesCollection());
 
         if (hasMoreMisfiredTriggers) {
             getLog().info(
@@ -3284,7 +3285,7 @@ public abstract class JobStoreSupport implements JobStore, Constants {
             // misfired triggers requiring recovery.
             int misfireCount = (getDoubleCheckLockMisfireHandler()) ?
                 getDelegate().countMisfiredTriggersInState(
-                    conn, STATE_WAITING, getMisfireTime()) : 
+                    conn, STATE_WAITING, getMisfireTime(), getExecutionCapabilitiesCollection()) :
                 Integer.MAX_VALUE;
             
             if (misfireCount == 0) {
@@ -3589,6 +3590,13 @@ public abstract class JobStoreSupport implements JobStore, Constants {
                                 rcvryTrig.setJobGroup(jKey.getGroup());
                                 rcvryTrig.setMisfireInstruction(SimpleTrigger.MISFIRE_INSTRUCTION_IGNORE_MISFIRE_POLICY);
                                 rcvryTrig.setPriority(ftRec.getPriority());
+                                // let's determine required capability of the original trigger
+                                OperableTrigger originalTrig = getDelegate().selectTrigger(conn, tKey);
+                                if (originalTrig != null) {
+                                    rcvryTrig.setRequiredCapability(originalTrig.getRequiredCapability());
+                                } else {
+                                    getLog().warn("ClusterManager: original trigger '" + tKey + "' for job '" + jKey + "' does not exist. Recovering with no required capability.");
+                                }
                                 JobDataMap jd = getDelegate().selectTriggerJobDataMap(conn, tKey.getName(), tKey.getGroup());
                                 jd.put(Scheduler.FAILED_JOB_ORIGINAL_TRIGGER_NAME, tKey.getName());
                                 jd.put(Scheduler.FAILED_JOB_ORIGINAL_TRIGGER_GROUP, tKey.getGroup());
