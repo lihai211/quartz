@@ -34,11 +34,7 @@ import org.quartz.spi.SchedulerSignaler;
 import org.quartz.spi.TriggerFiredResult;
 import org.terracotta.toolkit.internal.ToolkitInternal;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.Timer;
+import java.util.*;
 
 public class PlainTerracottaJobStore<T extends ClusteredJobStore> implements TerracottaJobStoreExtensions {
 
@@ -429,5 +425,20 @@ public class PlainTerracottaJobStore<T extends ClusteredJobStore> implements Ter
   @Override
   public void jobWasExecuted(final JobExecutionContext context, final JobExecutionException jobException) {
     //
+  }
+
+  @Override
+  public Collection<String> getExecutionCapabilitiesCollection() {
+    return Collections.emptySet();
+  }
+
+  @Override
+  public void setExecutionCapabilitiesCollection(Collection<String> executionCapabilities) {
+    // ignored
+  }
+
+  @Override
+  public boolean supportsExecutionCapabilities() {
+    return false;
   }
 }

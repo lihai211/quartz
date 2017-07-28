@@ -17,12 +17,7 @@
 package org.quartz.impl;
 
 import java.text.ParseException;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import javax.management.Attribute;
 import javax.management.AttributeList;
@@ -959,5 +954,12 @@ public abstract class RemoteMBeanScheduler implements Scheduler {
     public void setJobFactory(JobFactory factory) throws SchedulerException {
         throw new SchedulerException("Operation not supported for remote schedulers.");
     }
-    
+
+    public Collection<String> getExecutionCapabilities() throws SchedulerException {
+        throw new SchedulerException("Operation not supported for remote schedulers.");
+    }
+
+    public void setExecutionCapabilities(Collection<String> executionCapabilities) throws SchedulerException {
+        throw new SchedulerException("Operation not supported for remote schedulers.");
+    }
 }

@@ -1046,7 +1046,7 @@ public class QuartzScheduler implements RemotableQuartzScheduler {
             notifySchedulerListenersUnscheduled(key);
         return result;
     }
-    
+
     /**
      * <p>
      * Remove the indicated <code>{@link org.quartz.Trigger}</code> from the
@@ -2382,6 +2382,14 @@ J     *
             SchedulerPlugin plugin = itr.next();
             plugin.start();
         }
+    }
+
+    public Collection<String> getExecutionCapabilities() {
+        return resources.getJobStore().getExecutionCapabilitiesCollection();
+    }
+
+    public void setExecutionCapabilities(Collection<String> executionCapabilities) {
+        resources.getJobStore().setExecutionCapabilitiesCollection(executionCapabilities);
     }
 
 }
