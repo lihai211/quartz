@@ -665,4 +665,19 @@ public interface JobStore {
      * @return the time (in milliseconds) to wait before trying again
      */
     long getAcquireRetryDelay(int failureCount);
+
+    /**
+     * Get execution capabilities currently set for this job store.
+     */
+    Collection<String> getExecutionCapabilitiesCollection();
+
+    /**
+     * Set execution capabilities for this job store.
+     */
+    void setExecutionCapabilitiesCollection(Collection<String> executionCapabilities);
+
+    /**
+     * Returns true if this job store supports execution capabilities.
+     */
+    boolean supportsExecutionCapabilities();
 }

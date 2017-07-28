@@ -96,7 +96,7 @@ public abstract class JobStoreSupport implements JobStore, Constants {
 
     protected String instanceName;
 
-    private Set<String> executionCapabilitiesParsed = new HashSet<>();
+    private Set<String> executionCapabilitiesCollection = new HashSet<>();
 
     protected String executionCapabilities;             // comma-separated values (in order to be settable by properties)
     
@@ -255,8 +255,12 @@ public abstract class JobStoreSupport implements JobStore, Constants {
         this.instanceName = instanceName;
     }
 
-    public Collection<String> getExecutionCapabilitiesParsed() {
-        return Collections.unmodifiableSet(executionCapabilitiesParsed);
+    public boolean supportsExecutionCapabilities() {
+        return true;
+    }
+
+    public Collection<String> getExecutionCapabilitiesCollection() {
+        return Collections.unmodifiableSet(executionCapabilitiesCollection);
     }
 
     public String getExecutionCapabilities() {
@@ -266,16 +270,39 @@ public abstract class JobStoreSupport implements JobStore, Constants {
     // invoked by reflection
     // stringValue contains capabilities separated by comma
     public void setExecutionCapabilities(String stringValue) {
+        executionCapabilitiesCollection = capabilitiesStringToCollection(stringValue);
         executionCapabilities = stringValue;
-        executionCapabilitiesParsed.clear();
+    }
+
+    public void setExecutionCapabilitiesCollection(Collection<String> collection) {
+        executionCapabilities = capabilitiesCollectionToString(collection);
+        executionCapabilitiesCollection = new HashSet<>(collection);
+    }
+
+    // TODO move eventually to some util class
+    public static String capabilitiesCollectionToString(Collection<String> collection) {
+        StringBuilder sb = new StringBuilder();
+        for (String executionCapability : collection) {
+            if (sb.length() > 0) {
+                sb.append(", ");
+            }
+            sb.append(executionCapability);
+        }
+        return sb.toString();
+    }
+
+    // TODO move eventually to some util class
+    public static Set<String> capabilitiesStringToCollection(String stringValue) {
+        Set<String> collection = new HashSet<>();
         if (stringValue != null) {
             for (String capability : stringValue.split(",")) {
                 capability = capability.trim();
                 if (!capability.isEmpty()) {
-                    executionCapabilitiesParsed.add(capability);
+                    collection.add(capability);
                 }
             }
         }
+        return collection;
     }
 
     public void setThreadPoolSize(final int poolSize) {
@@ -2861,7 +2888,7 @@ public abstract class JobStoreSupport implements JobStore, Constants {
         do {
             currentLoopCount ++;
             try {
-                List<TriggerKey> keys = getDelegate().selectTriggerToAcquire(conn, noLaterThan + timeWindow, getMisfireTime(), maxCount, getExecutionCapabilitiesParsed());
+                List<TriggerKey> keys = getDelegate().selectTriggerToAcquire(conn, noLaterThan + timeWindow, getMisfireTime(), maxCount, getExecutionCapabilitiesCollection());
                 
                 // No trigger is ready to fire yet.
                 if (keys == null || keys.size() == 0)

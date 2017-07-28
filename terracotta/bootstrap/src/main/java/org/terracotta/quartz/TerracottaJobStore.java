@@ -18,10 +18,27 @@ package org.terracotta.quartz;
 
 import org.terracotta.toolkit.internal.ToolkitInternal;
 
+import java.util.Collection;
+import java.util.Collections;
+
 public class TerracottaJobStore extends AbstractTerracottaJobStore {
   @Override
   TerracottaJobStoreExtensions getRealStore(ToolkitInternal toolkit) {
     return new PlainTerracottaJobStore(toolkit);
   }
 
+  @Override
+  public Collection<String> getExecutionCapabilitiesCollection() {
+    return Collections.emptySet();
+  }
+
+  @Override
+  public void setExecutionCapabilitiesCollection(Collection<String> executionCapabilities) {
+    // ignored for now
+  }
+
+  @Override
+  public boolean supportsExecutionCapabilities() {
+    return false;
+  }
 }

@@ -18,10 +18,7 @@
 
 package org.quartz;
 
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import org.quartz.Trigger.TriggerState;
 import org.quartz.impl.matchers.GroupMatcher;
@@ -966,5 +963,15 @@ public interface Scheduler {
      */
     void clear() throws SchedulerException;
 
+    /**
+     * Gets execution capabilities for this scheduler (if supported by the job store).
+     * (Not implemented for JMX scheduler access yet.)
+     */
+    Collection<String> getExecutionCapabilities() throws SchedulerException;
 
+    /**
+     * Sets execution capabilities for this scheduler (if supported by the job store).
+     * (Not implemented for JMX scheduler access yet.)
+     */
+    void setExecutionCapabilities(Collection<String> executionCapabilities) throws SchedulerException;
 }
