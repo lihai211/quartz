@@ -11,6 +11,8 @@ One node can declare 0 or more provided capabilities. Each individual trigger ca
 
 Current version is 2.3.0.e1, which is based on 2.3.0. (It also includes some minor fixes committed after 2.3.0 release.)     
 
+Evolveum-specific development is carried out on "evolveum-master" branch. Original "master" branch is kept
+intact, except for this one file. 
 
 ## Build instructions:
 
