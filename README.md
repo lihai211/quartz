@@ -1,6 +1,15 @@
 
-## Builld status: 
-![Master branch build status](https://travis-ci.org/quartz-scheduler/quartz.svg?branch=master "Master build status")
+## About
+Contains original Quartz Scheduler code with some functionality provided by Evolveum.
+
+Currently the only feature added is "execution capabilities". It allows execution nodes to specify
+string tags denoting their capabilities (e.g. "batch jobs", "large RAM" etc). Individual triggers
+can then specify required capability, which is then taken into account when acquiring and firing
+these triggers.
+
+One node can declare 0 or more provided capabilities. Each individual trigger can specify 0 or 1 required capabilities.
+
+Current version is 2.3.0.e1, which is based on 2.3.0. (It also includes some minor fixes committed after 2.3.0 release.)     
 
 
 ## Build instructions:
