@@ -353,19 +353,18 @@
         <additionalparam>-Xdoclint:none</additionalparam>
       </properties>
     </profile>
-  </profiles>  
+  </profiles>
 
   <distributionManagement>
     <repository>
-      <id>terracotta-staging</id>
-      <name>Terracotta Staging Repository</name>
-      <url>${terracotta-staging-url}</url>
+      <id>evolveum-nexus</id>
+      <name>Internal Releases</name>
+      <url>https://nexus.evolveum.com/nexus/content/repositories/releases/</url>
     </repository>
     <snapshotRepository>
-      <id>terracotta-snapshots</id>
-      <uniqueVersion>false</uniqueVersion>
-      <name>Terracotta Snapshots Repository</name>
-      <url>${terracotta-snapshots-url}</url>
+      <id>evolveum-nexus</id>
+      <name>Internal Snapshots</name>
+      <url>https://nexus.evolveum.com/nexus/content/repositories/snapshots/</url>
     </snapshotRepository>
   </distributionManagement>
 
