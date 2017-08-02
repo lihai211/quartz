@@ -75,6 +75,17 @@ public class PlainTerracottaJobStore<T extends ClusteredJobStore> implements Ter
   }
 
   @Override
+  public List<OperableTrigger> acquireNextTriggers(long noLaterThan, int maxCount, Map<String, Integer> jobGroupsLimits,
+          long timeWindow) throws JobPersistenceException {
+    return acquireNextTriggers(noLaterThan, maxCount, timeWindow);
+  }
+
+  @Override
+  public boolean supportsJobGroupLimits() {
+    return false;
+  }
+
+  @Override
   public List<String> getCalendarNames() throws JobPersistenceException {
     return clusteredJobStore.getCalendarNames();
   }

@@ -2559,18 +2559,18 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
      * @param conn
      *          the DB Connection
      * @param noLaterThan
-     *          highest value of <code>getNextFireTime()</code> of the triggers (exclusive)
+     *          highest value of <code>getNextFireTime()</code> of the triggers (exclusive) TODO doesn't match the SQL code
      * @param noEarlierThan 
-     *          highest value of <code>getNextFireTime()</code> of the triggers (inclusive)
+     *          lowest value of <code>getNextFireTime()</code> of the triggers (inclusive)
      *          
      * @return A (never null, possibly empty) list of the identifiers (Key objects) of the next triggers to be fired.
      * 
-     * @deprecated - This remained for compatibility reason. Use {@link #selectTriggerToAcquire(Connection, long, long, int)} instead. 
+     * @deprecated - This remained for compatibility reason. Use {@link DriverDelegate#selectTriggerToAcquire(Connection, long, long, int, Map)} instead.
      */
     public List<TriggerKey> selectTriggerToAcquire(Connection conn, long noLaterThan, long noEarlierThan)
             throws SQLException {
         // This old API used to always return 1 trigger.
-        return selectTriggerToAcquire(conn, noLaterThan, noEarlierThan, 1);
+        return selectTriggerToAcquire(conn, noLaterThan, noEarlierThan, 1, null);
     }
 
     /**
@@ -2582,19 +2582,25 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
      * @param conn
      *          the DB Connection
      * @param noLaterThan
-     *          highest value of <code>getNextFireTime()</code> of the triggers (exclusive)
+     *          highest value of <code>getNextFireTime()</code> of the triggers (exclusive) TODO doesn't match the SQL code
      * @param noEarlierThan 
-     *          highest value of <code>getNextFireTime()</code> of the triggers (inclusive)
+     *          lowest value of <code>getNextFireTime()</code> of the triggers (inclusive)
      * @param maxCount 
      *          maximum number of trigger keys allow to acquired in the returning list.
-     *          
+     * @param jobGroupsLimits
+     *          how many of triggers in job group we may fetch - checked in addition to maxCount
      * @return A (never null, possibly empty) list of the identifiers (Key objects) of the next triggers to be fired.
      */
-    public List<TriggerKey> selectTriggerToAcquire(Connection conn, long noLaterThan, long noEarlierThan, int maxCount)
+    public List<TriggerKey> selectTriggerToAcquire(Connection conn, long noLaterThan, long noEarlierThan, int maxCount,
+            Map<String, Integer> jobGroupsLimits)
         throws SQLException {
         PreparedStatement ps = null;
         ResultSet rs = null;
         List<TriggerKey> nextTriggers = new LinkedList<TriggerKey>();
+        // job group limits will be modified during processing
+        Map<String, Integer> jobGroupLimitsWorkingCopy = jobGroupsLimits != null ?
+            new HashMap<>(jobGroupsLimits) : new HashMap<String, Integer>();
+
         try {
             ps = conn.prepareStatement(rtp(SELECT_NEXT_TRIGGER_TO_ACQUIRE));
             
@@ -2613,9 +2619,12 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
             rs = ps.executeQuery();
             
             while (rs.next() && nextTriggers.size() <= maxCount) {
-                nextTriggers.add(triggerKey(
-                        rs.getString(COL_TRIGGER_NAME),
-                        rs.getString(COL_TRIGGER_GROUP)));
+                String jobGroup = rs.getString(COL_JOB_GROUP);
+                if (checkJobGroupLimit(jobGroup, jobGroupLimitsWorkingCopy)) {
+                    nextTriggers.add(triggerKey(
+                            rs.getString(COL_TRIGGER_NAME),
+                            rs.getString(COL_TRIGGER_GROUP)));
+                }
             }
             
             return nextTriggers;
@@ -2623,6 +2632,25 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
             closeResultSet(rs);
             closeStatement(ps);
         }      
+    }
+
+    // TODO move to some 'util' class, as it is used also from elsewhere
+    public static boolean checkJobGroupLimit(String jobGroup, Map<String, Integer> limits) {
+        if (jobGroup == null) {
+            throw new IllegalStateException("Job group cannot be null");        // ensured by the database
+        }
+        boolean isPresent = limits.containsKey(jobGroup);
+        Integer limit = isPresent ? limits.get(jobGroup) : limits.get(null);
+        if (limit == null) {
+            return true;
+        } else if (limit == 0) {
+            return false;
+        } else {
+            if (isPresent) {
+                limits.put(jobGroup, limit-1);
+            }
+            return true;
+        }
     }
 
     /**

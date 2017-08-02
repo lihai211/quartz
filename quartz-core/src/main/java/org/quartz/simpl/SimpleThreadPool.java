@@ -17,14 +17,13 @@
 
 package org.quartz.simpl;
 
+import org.quartz.core.JobRunShell;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.quartz.SchedulerConfigException;
 import org.quartz.spi.ThreadPool;
 
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -393,6 +392,22 @@ public class SimpleThreadPool implements ThreadPool {
                 getLog().debug("No executing jobs remaining, all threads stopped.");
             }
             getLog().debug("Shutdown of threadpool complete.");
+        }
+    }
+
+    @Override
+    public Map<String, Integer> getExecutingJobGroupsCounts() {
+        synchronized (nextRunnableLock) {
+            Map<String, Integer> rv = new HashMap<>();
+            for (WorkerThread busyWorker : busyWorkers) {
+                if (busyWorker.runnable instanceof JobRunShell) {
+                    JobRunShell jobRunShell = (JobRunShell) busyWorker.runnable;
+                    String jobGroup = jobRunShell.getJobGroup();
+                    Integer c = rv.get(jobGroup);
+                    rv.put(jobGroup, c != null ? c+1 : 1);
+                }
+            }
+            return rv;
         }
     }
 

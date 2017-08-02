@@ -19,6 +19,8 @@ package org.quartz.spi;
 
 import org.quartz.SchedulerConfigException;
 
+import java.util.Map;
+
 /**
  * <p>
  * The interface to be implemented by classes that want to provide a thread
@@ -121,4 +123,10 @@ public interface ThreadPool {
      */
     void setInstanceName(String schedName);
 
+    /**
+     * <p>Returns the number of jobs in execution, according to their job group.</p>
+     *
+     * @since 2.3.1
+     */
+    Map<String,Integer> getExecutingJobGroupsCounts();
 }

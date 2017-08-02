@@ -24,16 +24,7 @@ import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -146,6 +137,9 @@ public class QuartzScheduler implements RemotableQuartzScheduler {
      */
 
     private QuartzSchedulerResources resources;
+
+    // TODO move to appropriate place
+    private Map<String, Integer> jobGroupsExecutionLimits;
 
     private QuartzSchedulerThread schedThread;
 
@@ -2384,6 +2378,20 @@ J     *
         }
     }
 
+    public Map<String, Integer> getJobGroupsExecutionLimits() {
+        return jobGroupsExecutionLimits != null ? Collections.unmodifiableMap(jobGroupsExecutionLimits) : null;
+    }
+
+    public void setJobGroupsExecutionLimits(Map<String, Integer> map) {
+        this.jobGroupsExecutionLimits = map != null ? new HashMap<>(map) : null;
+    }
+
+    public void setJobGroupExecutionLimit(String jobGroup, Integer limit) {
+        Map<String, Integer> newMap = jobGroupsExecutionLimits != null ?
+                new HashMap<>(jobGroupsExecutionLimits) : new HashMap<String, Integer>();
+        newMap.put(jobGroup, limit);
+        setJobGroupsExecutionLimits(newMap);
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////

@@ -16,13 +16,7 @@
  */
 package org.quartz.impl;
 
-import java.text.ParseException;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import javax.management.Attribute;
 import javax.management.AttributeList;
@@ -45,7 +39,6 @@ import org.quartz.TriggerKey;
 import org.quartz.UnableToInterruptJobException;
 import org.quartz.Trigger.TriggerState;
 import org.quartz.core.jmx.JobDetailSupport;
-import org.quartz.core.jmx.TriggerSupport;
 import org.quartz.impl.matchers.GroupMatcher;
 import org.quartz.impl.matchers.StringMatcher;
 import org.quartz.spi.JobFactory;
@@ -959,5 +952,12 @@ public abstract class RemoteMBeanScheduler implements Scheduler {
     public void setJobFactory(JobFactory factory) throws SchedulerException {
         throw new SchedulerException("Operation not supported for remote schedulers.");
     }
-    
+
+    public Map<String, Integer> getJobGroupsExecutionLimits() throws SchedulerException {
+        throw new SchedulerException("Operation not supported for remote schedulers.");
+    }
+
+    public void setJobGroupsExecutionLimits(Map<String, Integer> executionLimits) throws SchedulerException {
+        throw new SchedulerException("Operation not supported for remote schedulers.");
+    }
 }

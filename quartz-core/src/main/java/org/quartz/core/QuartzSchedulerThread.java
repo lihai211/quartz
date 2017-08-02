@@ -18,9 +18,7 @@
 
 package org.quartz.core;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.quartz.JobPersistenceException;
@@ -284,8 +282,11 @@ public class QuartzSchedulerThread extends Thread {
 
                     clearSignaledSchedulingChange();
                     try {
+                        Map<String, Integer> jobGroupsLimits =
+                                qsRsrcs.getJobStore().supportsJobGroupLimits() ? computeJobGroupsLimits() : null;
                         triggers = qsRsrcs.getJobStore().acquireNextTriggers(
-                                now + idleWaitTime, Math.min(availThreadCount, qsRsrcs.getMaxBatchSize()), qsRsrcs.getBatchTimeWindow());
+                                now + idleWaitTime, Math.min(availThreadCount, qsRsrcs.getMaxBatchSize()),
+                                jobGroupsLimits, qsRsrcs.getBatchTimeWindow());
                         acquiresFailed = 0;
                         if (log.isDebugEnabled())
                             log.debug("batch acquisition of " + (triggers == null ? 0 : triggers.size()) + " triggers");
@@ -439,6 +440,26 @@ public class QuartzSchedulerThread extends Thread {
         // drop references to scheduler stuff to aid garbage collection...
         qs = null;
         qsRsrcs = null;
+    }
+
+    /**
+     * Takes prescribed limits for job groups (if any), and lowers them according to jobs currently executing on this node.
+     */
+    private Map<String, Integer> computeJobGroupsLimits() {
+        Map<String, Integer> executingJobsPerGroup = qsRsrcs.getThreadPool().getExecutingJobGroupsCounts();
+        Map<String, Integer> limits = qs.getJobGroupsExecutionLimits();
+        if (limits == null) {
+            return null;            // no limits => nothing to do
+        }
+        Map<String, Integer> rv = new HashMap<>(limits);
+        for (Map.Entry<String, Integer> entry : rv.entrySet()) {
+            String jobGroup = entry.getKey();
+            Integer executing = executingJobsPerGroup.get(jobGroup);
+            if (executing != null && executing > 0 && entry.getValue() != null) {
+                entry.setValue(entry.getValue() - executing);
+            }
+        }
+        return rv;
     }
 
     private static final long MIN_DELAY = 20;

@@ -371,6 +371,11 @@ public class JobRunShell extends SchedulerListenerSupport implements Runnable {
         return true;
     }
 
+    public String getJobGroup() {
+        // Can be any of these null? Supposedly not.
+        return jec.getJobDetail().getKey().getGroup();
+    }
+
     static class VetoedException extends Exception {
 
         private static final long serialVersionUID = 1539955697495918463L;

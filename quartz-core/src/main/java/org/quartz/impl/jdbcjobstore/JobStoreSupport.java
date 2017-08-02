@@ -102,7 +102,7 @@ public abstract class JobStoreSupport implements JobStore, Constants {
     protected String instanceId;
 
     protected String instanceName;
-    
+
     protected String delegateClassName;
 
     protected String delegateInitString;
@@ -2781,6 +2781,15 @@ public abstract class JobStoreSupport implements JobStore, Constants {
         return getInstanceId() + ftrCtr++;
     }
 
+    public List<OperableTrigger> acquireNextTriggers(final long noLaterThan, final int maxCount, final long timeWindow)
+            throws JobPersistenceException {
+        return acquireNextTriggers(noLaterThan, maxCount, null, timeWindow);
+    }
+
+    public boolean supportsJobGroupLimits() {
+        return true;
+    }
+
     /**
      * <p>
      * Get a handle to the next N triggers to be fired, and mark them as 'reserved'
@@ -2790,7 +2799,7 @@ public abstract class JobStoreSupport implements JobStore, Constants {
      * @see #releaseAcquiredTrigger(OperableTrigger)
      */
     @SuppressWarnings("unchecked")
-    public List<OperableTrigger> acquireNextTriggers(final long noLaterThan, final int maxCount, final long timeWindow)
+    public List<OperableTrigger> acquireNextTriggers(final long noLaterThan, final int maxCount, final Map<String, Integer> jobGroupsLimits, final long timeWindow)
         throws JobPersistenceException {
         
         String lockName;
@@ -2802,7 +2811,7 @@ public abstract class JobStoreSupport implements JobStore, Constants {
         return executeInNonManagedTXLock(lockName, 
                 new TransactionCallback<List<OperableTrigger>>() {
                     public List<OperableTrigger> execute(Connection conn) throws JobPersistenceException {
-                        return acquireNextTrigger(conn, noLaterThan, maxCount, timeWindow);
+                        return acquireNextTrigger(conn, noLaterThan, maxCount, jobGroupsLimits, timeWindow);
                     }
                 },
                 new TransactionValidator<List<OperableTrigger>>() {
@@ -2828,7 +2837,7 @@ public abstract class JobStoreSupport implements JobStore, Constants {
     
     // FUTURE_TODO: this really ought to return something like a FiredTriggerBundle,
     // so that the fireInstanceId doesn't have to be on the trigger...
-    protected List<OperableTrigger> acquireNextTrigger(Connection conn, long noLaterThan, int maxCount, long timeWindow)
+    protected List<OperableTrigger> acquireNextTrigger(Connection conn, long noLaterThan, int maxCount, Map<String, Integer> jobGroupsLimits, long timeWindow)
         throws JobPersistenceException {
         if (timeWindow < 0) {
           throw new IllegalArgumentException();
@@ -2841,7 +2850,7 @@ public abstract class JobStoreSupport implements JobStore, Constants {
         do {
             currentLoopCount ++;
             try {
-                List<TriggerKey> keys = getDelegate().selectTriggerToAcquire(conn, noLaterThan + timeWindow, getMisfireTime(), maxCount);
+                List<TriggerKey> keys = getDelegate().selectTriggerToAcquire(conn, noLaterThan + timeWindow, getMisfireTime(), maxCount, jobGroupsLimits);
                 
                 // No trigger is ready to fire yet.
                 if (keys == null || keys.size() == 0)

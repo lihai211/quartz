@@ -24,11 +24,7 @@ import static org.quartz.SimpleScheduleBuilder.simpleSchedule;
 import static org.quartz.TriggerBuilder.newTrigger;
 
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
-import java.util.Properties;
+import java.util.*;
 
 import org.junit.Test;
 import org.quartz.DisallowConcurrentExecution;
@@ -148,12 +144,24 @@ public class QTZ336_MissSchedulingChangeSignalTest {
         @Override
         public List<OperableTrigger> acquireNextTriggers(long noLaterThan, int maxCount, long timeWindow) {
             List<OperableTrigger> nextTriggers = super.acquireNextTriggers(noLaterThan, maxCount, timeWindow);
+            waitABit();
+            return nextTriggers;
+        }
+
+        @Override
+        public List<OperableTrigger> acquireNextTriggers(long noLaterThan, int maxCount, Map<String, Integer> jobGroupsLimits,
+                long timeWindow) {
+            List<OperableTrigger> nextTriggers = super.acquireNextTriggers(noLaterThan, maxCount, jobGroupsLimits, timeWindow);
+            waitABit();
+            return nextTriggers;
+        }
+
+        private void waitABit() {
             try {
                 // Wait just a bit for hopefully having a context switch leading to the race condition
                 Thread.sleep(10);
             } catch (InterruptedException e) {
             }
-            return nextTriggers;
         }
     }
 }
