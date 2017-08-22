@@ -63,9 +63,10 @@ import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.security.AccessControlException;
-import java.sql.SQLException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Properties;
 
 /**
@@ -190,6 +191,8 @@ public class StdSchedulerFactory implements SchedulerFactory {
     public static final String PROP_SCHED_INTERRUPT_JOBS_ON_SHUTDOWN_WITH_WAIT = "org.quartz.scheduler.interruptJobsOnShutdownWithWait";
 
     public static final String PROP_SCHED_CONTEXT_PREFIX = "org.quartz.context.key";
+
+    public static final String PROP_SCHED_EXECUTION_LIMIT_PREFIX = "org.quartz.executionLimit";
 
     public static final String PROP_THREAD_POOL_PREFIX = "org.quartz.threadPool";
 
@@ -707,6 +710,38 @@ public class StdSchedulerFactory implements SchedulerFactory {
         String managementRESTServiceHostAndPort = cfg.getStringProperty(MANAGEMENT_REST_SERVICE_HOST_PORT, "0.0.0.0:9889");
 
         Properties schedCtxtProps = cfg.getPropertyGroup(PROP_SCHED_CONTEXT_PREFIX, true);
+
+        Properties executionLimitProps = cfg.getPropertyGroup(PROP_SCHED_EXECUTION_LIMIT_PREFIX, true);
+        Map<String, Integer> executionLimits;
+        if (executionLimitProps.isEmpty()) {
+            executionLimits = null;
+        } else {
+            executionLimits = new HashMap<>();
+            for (Map.Entry<Object, Object> e : executionLimitProps.entrySet()) {
+                String group = (String) e.getKey();
+                if ("".equals(group)) {
+                    throw new IllegalArgumentException("Unsupported execution group specification: (empty string). "
+                            + "Please use '_' or 'null' values to specify limit for jobs without execution group.");
+                } else if ("_".equals(group) || "null".equals(group)) {
+                    group = null;
+                }
+                String limitString = (String) e.getValue();
+                Integer limit;
+                if (limitString == null || "".equals(limitString) || "none".equals(limitString)
+                        || "null".equals(limitString) || "unlimited".equals(limitString)) {
+                    limit = null;
+                } else {
+                    try {
+                        limit = Integer.parseInt(limitString);
+                    } catch (NumberFormatException ex) {
+                        throw new IllegalArgumentException("Couldn't parse execution limit specification: '" + limitString
+                                + "'. Please use a number (including 0) to set a limit, or 'none', 'null', 'unlimited'"
+                                + " to specify that there should be no limit.");
+                    }
+                }
+                executionLimits.put(group, limit);
+            }
+        }
 
         // If Proxying to remote scheduler, short-circuit here...
         // ~~~~~~~~~~~~~~~~~~
@@ -1323,7 +1358,9 @@ public class StdSchedulerFactory implements SchedulerFactory {
     
             // Create Scheduler ref...
             Scheduler scheduler = instantiate(rsrcs, qs);
-    
+
+            scheduler.setExecutionLimits(executionLimits);
+
             // set job factory if specified
             if(jobFactory != null) {
                 qs.setJobFactory(jobFactory);
@@ -1347,7 +1384,7 @@ public class StdSchedulerFactory implements SchedulerFactory {
                 String val = schedCtxtProps.getProperty((String) key);    
                 scheduler.getContext().put((String)key, val);
             }
-    
+
             // fire up job store, and runshell factory
     
             js.setInstanceId(schedInstId);
