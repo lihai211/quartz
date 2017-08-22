@@ -592,8 +592,25 @@ public interface JobStore {
      * that will fire no later than the time represented in this value as
      * milliseconds.
      * @see #releaseAcquiredTrigger(OperableTrigger)
+     *
+     * @deprecated Use {@link #acquireNextTriggers(long, int, Map, long)} instead.
      */
     List<OperableTrigger> acquireNextTriggers(long noLaterThan, int maxCount, long timeWindow)
+        throws JobPersistenceException;
+
+    /**
+     * Get a handle to the next trigger to be fired, and mark it as 'reserved'
+     * by the calling scheduler.
+     *
+     * @param noLaterThan If > 0, the JobStore should only return a Trigger
+     * that will fire no later than the time represented in this value as
+     * milliseconds.
+     * @param executionLimits
+     *          how many triggers in each execution group we may fetch - checked in addition to maxCount (nullable)
+     *          It is ignored if given implementation does not support execution limits.
+     * @see #releaseAcquiredTrigger(OperableTrigger)
+     */
+    List<OperableTrigger> acquireNextTriggers(long noLaterThan, int maxCount, Map<String, Integer> executionLimits, long timeWindow)
         throws JobPersistenceException;
 
     /**

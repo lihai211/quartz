@@ -623,5 +623,13 @@ public class StdScheduler implements Scheduler {
         return sched.interrupt(fireInstanceId);
     }
 
-  
+    @Override
+    public Map<String, Integer> getExecutionLimits() throws SchedulerException {
+        return sched.getExecutionLimits();
+    }
+
+    @Override
+    public void setExecutionLimits(Map<String, Integer> executionLimits) throws SchedulerException {
+        sched.setExecutionLimits(executionLimits);
+    }
 }

@@ -15,14 +15,11 @@
  */
 package org.quartz;
 
-import java.util.Date;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 import junit.framework.Assert;
 import junit.framework.TestCase;
 
-import org.hamcrest.collection.IsIterableContainingInOrder;
 import org.quartz.Trigger.TriggerState;
 import org.quartz.impl.JobDetailImpl;
 import org.quartz.impl.jdbcjobstore.JobStoreSupport;
@@ -30,10 +27,6 @@ import org.quartz.impl.matchers.GroupMatcher;
 import org.quartz.impl.triggers.SimpleTriggerImpl;
 import org.quartz.simpl.CascadingClassLoadHelper;
 import org.quartz.spi.*;
-
-import static org.hamcrest.beans.HasPropertyWithValue.hasProperty;
-import static org.hamcrest.core.Is.is;
-import static org.junit.Assert.assertThat;
 
 /**
  * Unit test for JobStores.  These tests were submitted by Johannes Zillmann
@@ -43,6 +36,10 @@ public abstract class AbstractJobStoreTest extends TestCase {
     private JobStore fJobStore;
     private JobDetailImpl fJobDetail;
     private SampleSignaler fSignaler;
+
+	private static final String EXEC_GROUP_1 = "grp1";
+	private static final String EXEC_GROUP_2 = "grp2";
+	private static final String EXEC_GROUP_OTHER = "grpOther";
 
     @SuppressWarnings("deprecation")
     @Override
@@ -217,6 +214,436 @@ public abstract class AbstractJobStoreTest extends TestCase {
         assertEquals(1, acquiredTriggers.size());
         assertEquals(trigger1.getKey(), acquiredTriggers.get(0).getKey());
         this.fJobStore.releaseAcquiredTrigger(trigger1);
+    }
+
+	/**
+	 *  Similar to {@link #testAcquireNextTriggerBatch()}; but this one takes execution groups into account:
+	 *  early and trigger1 require capabilities that are present in current node, trigger2 requires non-existing execution capability.
+	 *  Trigger2 should not be returned by {@link JobStore#acquireNextTriggers} method.
+	 */
+	public void testAcquireNextTriggerBatchExecutionLimits() throws Exception {
+
+		boolean shouldSupportJobGroupLimits = fJobStore instanceof ExecutionLimitsAwareJobStore;
+		if (!shouldSupportJobGroupLimits) {
+			return;			// nothing to test here
+		}
+
+		long baseFireTime = System.currentTimeMillis() - 1000;
+
+		// usage of job groups is not quite correct here, but probably good enough for testing
+		OperableTrigger early =
+				new SimpleTriggerImpl("early", "triggerGroup1", this.fJobDetail.getName(),
+                        this.fJobDetail.getGroup(), new Date(baseFireTime),
+						new Date(baseFireTime + 5), 2, 2000);
+		early.setExecutionGroup(EXEC_GROUP_1);
+		OperableTrigger trigger1 =
+				new SimpleTriggerImpl("trigger1", "triggerGroup1", this.fJobDetail.getName(),
+                        this.fJobDetail.getGroup(), new Date(baseFireTime + 200000),
+						new Date(baseFireTime + 200005), 2, 2000);
+        trigger1.setExecutionGroup(EXEC_GROUP_2);
+		OperableTrigger trigger2 =
+				new SimpleTriggerImpl("trigger2", "triggerGroup1", this.fJobDetail.getName(),
+                        this.fJobDetail.getGroup(), new Date(baseFireTime + 210000),
+						new Date(baseFireTime + 210005), 2, 2000);
+        trigger2.setExecutionGroup(EXEC_GROUP_OTHER);
+		OperableTrigger trigger3 =
+				new SimpleTriggerImpl("trigger3", "triggerGroup1", this.fJobDetail.getName(),
+						this.fJobDetail.getGroup(), new Date(baseFireTime + 220000),
+						new Date(baseFireTime + 220005), 2, 2000);
+		OperableTrigger trigger4 =
+				new SimpleTriggerImpl("trigger4", "triggerGroup1", this.fJobDetail.getName(),
+						this.fJobDetail.getGroup(), new Date(baseFireTime + 230000),
+						new Date(baseFireTime + 230005), 2, 2000);
+		OperableTrigger trigger10 =
+				new SimpleTriggerImpl("trigger10", "triggerGroup2", this.fJobDetail.getName(),
+						this.fJobDetail.getGroup(), new Date(baseFireTime + 500000),
+						new Date(baseFireTime + 700000), 2, 2000);
+
+        Map<String, Integer> jobGroupLimits = new HashMap<>();
+        jobGroupLimits.put(EXEC_GROUP_1, 100);
+        jobGroupLimits.put(EXEC_GROUP_2, 100);
+        jobGroupLimits.put(null, 100);
+        jobGroupLimits.put(Scheduler.LIMIT_FOR_OTHER_GROUPS, 0);            // all the others are not allowed
+
+		early.computeFirstFireTime(null);
+		early.setMisfireInstruction(Trigger.MISFIRE_INSTRUCTION_IGNORE_MISFIRE_POLICY);
+		trigger1.computeFirstFireTime(null);
+		trigger2.computeFirstFireTime(null);
+		trigger3.computeFirstFireTime(null);
+		trigger4.computeFirstFireTime(null);
+		trigger10.computeFirstFireTime(null);
+		this.fJobStore.storeTrigger(early, false);
+		this.fJobStore.storeTrigger(trigger1, false);
+		this.fJobStore.storeTrigger(trigger2, false);
+		this.fJobStore.storeTrigger(trigger3, false);
+		this.fJobStore.storeTrigger(trigger4, false);
+		this.fJobStore.storeTrigger(trigger10, false);
+
+		long firstFireTime = new Date(trigger1.getNextFireTime().getTime()).getTime();
+
+		List<OperableTrigger> acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 10000, 4, jobGroupLimits,1000L);
+		assertEquals(1, acquiredTriggers.size());
+		assertEquals(early.getKey(), acquiredTriggers.get(0).getKey());
+		this.fJobStore.releaseAcquiredTrigger(early);
+
+		acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 10000, 4, jobGroupLimits,205000);
+		assertEquals(2, acquiredTriggers.size());
+		assertEquals(early.getKey(), acquiredTriggers.get(0).getKey());
+		assertEquals(trigger1.getKey(), acquiredTriggers.get(1).getKey());
+		this.fJobStore.releaseAcquiredTrigger(early);
+		this.fJobStore.releaseAcquiredTrigger(trigger1);
+
+		this.fJobStore.removeTrigger(early.getKey());
+
+		acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 10000, 5, jobGroupLimits,100000L);
+		assertEquals(3, acquiredTriggers.size());
+		assertEquals(trigger1.getKey(), acquiredTriggers.get(0).getKey());
+		// trigger2 should not be present because of execution limit
+		assertEquals(trigger3.getKey(), acquiredTriggers.get(1).getKey());
+		assertEquals(trigger4.getKey(), acquiredTriggers.get(2).getKey());
+		this.fJobStore.releaseAcquiredTrigger(trigger1);
+		this.fJobStore.releaseAcquiredTrigger(trigger3);
+		this.fJobStore.releaseAcquiredTrigger(trigger4);
+
+		acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 10000, 6, jobGroupLimits,100000L);
+		assertEquals(3, acquiredTriggers.size());
+		assertEquals(trigger1.getKey(), acquiredTriggers.get(0).getKey());
+		// trigger2 should not be present because of execution limit
+		assertEquals(trigger3.getKey(), acquiredTriggers.get(1).getKey());
+		assertEquals(trigger4.getKey(), acquiredTriggers.get(2).getKey());
+		this.fJobStore.releaseAcquiredTrigger(trigger1);
+		this.fJobStore.releaseAcquiredTrigger(trigger3);
+		this.fJobStore.releaseAcquiredTrigger(trigger4);
+
+		acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 1, 5, jobGroupLimits,0L);
+		assertEquals(1, acquiredTriggers.size());
+		assertEquals(trigger1.getKey(), acquiredTriggers.get(0).getKey());
+		this.fJobStore.releaseAcquiredTrigger(trigger1);
+
+		acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 250, 5, jobGroupLimits,19999L);
+		assertEquals(1, acquiredTriggers.size());
+		assertEquals(trigger1.getKey(), acquiredTriggers.get(0).getKey());
+		// trigger2 should not be present because of execution limit
+		this.fJobStore.releaseAcquiredTrigger(trigger1);
+		this.fJobStore.releaseAcquiredTrigger(trigger3);
+
+		acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 150, 5, jobGroupLimits,5000L);
+		assertEquals(1, acquiredTriggers.size());
+		assertEquals(trigger1.getKey(), acquiredTriggers.get(0).getKey());
+		this.fJobStore.releaseAcquiredTrigger(trigger1);
+	}
+
+    /**
+     *  As the previous one, but limits the use of 'null' execution groups as well.
+     */
+    public void testAcquireNextTriggerBatchExecutionLimitsAlsoNull() throws Exception {
+
+        if (!(fJobStore instanceof ExecutionLimitsAwareJobStore)) {
+            return;			// nothing to test here
+        }
+
+        long baseFireTime = System.currentTimeMillis() - 1000;
+
+        // usage of job groups is not quite correct here, but probably good enough for testing
+        OperableTrigger early =
+                new SimpleTriggerImpl("early", "triggerGroup1", this.fJobDetail.getName(),
+                        this.fJobDetail.getGroup(), new Date(baseFireTime),
+                        new Date(baseFireTime + 5), 2, 2000);
+        early.setExecutionGroup(EXEC_GROUP_1);
+        OperableTrigger trigger1 =
+                new SimpleTriggerImpl("trigger1", "triggerGroup1", this.fJobDetail.getName(),
+                        this.fJobDetail.getGroup(), new Date(baseFireTime + 200000),
+                        new Date(baseFireTime + 200005), 2, 2000);
+        trigger1.setExecutionGroup(EXEC_GROUP_2);
+        OperableTrigger trigger2 =
+                new SimpleTriggerImpl("trigger2", "triggerGroup1", this.fJobDetail.getName(),
+                        this.fJobDetail.getGroup(), new Date(baseFireTime + 210000),
+                        new Date(baseFireTime + 210005), 2, 2000);
+        trigger2.setExecutionGroup(EXEC_GROUP_OTHER);
+        OperableTrigger trigger3 =
+                new SimpleTriggerImpl("trigger3", "triggerGroup1", this.fJobDetail.getName(),
+                        this.fJobDetail.getGroup(), new Date(baseFireTime + 220000),
+                        new Date(baseFireTime + 220005), 2, 2000);
+        OperableTrigger trigger4 =
+                new SimpleTriggerImpl("trigger4", "triggerGroup1", this.fJobDetail.getName(),
+                        this.fJobDetail.getGroup(), new Date(baseFireTime + 230000),
+                        new Date(baseFireTime + 230005), 2, 2000);
+        OperableTrigger trigger10 =
+                new SimpleTriggerImpl("trigger10", "triggerGroup2", this.fJobDetail.getName(),
+                        this.fJobDetail.getGroup(), new Date(baseFireTime + 500000),
+                        new Date(baseFireTime + 700000), 2, 2000);
+
+        Map<String, Integer> jobGroupLimits = new HashMap<>();
+        jobGroupLimits.put(EXEC_GROUP_1, 100);
+        jobGroupLimits.put(EXEC_GROUP_2, 100);
+        jobGroupLimits.put(null, 1);                                        // only one with null execution group
+        jobGroupLimits.put(Scheduler.LIMIT_FOR_OTHER_GROUPS, 0);            // all the others are not allowed
+
+        early.computeFirstFireTime(null);
+        early.setMisfireInstruction(Trigger.MISFIRE_INSTRUCTION_IGNORE_MISFIRE_POLICY);
+        trigger1.computeFirstFireTime(null);
+        trigger2.computeFirstFireTime(null);
+        trigger3.computeFirstFireTime(null);
+        trigger4.computeFirstFireTime(null);
+        trigger10.computeFirstFireTime(null);
+        this.fJobStore.storeTrigger(early, false);
+        this.fJobStore.storeTrigger(trigger1, false);
+        this.fJobStore.storeTrigger(trigger2, false);
+        this.fJobStore.storeTrigger(trigger3, false);
+        this.fJobStore.storeTrigger(trigger4, false);
+        this.fJobStore.storeTrigger(trigger10, false);
+
+        long firstFireTime = new Date(trigger1.getNextFireTime().getTime()).getTime();
+
+        List<OperableTrigger> acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 10000, 4, jobGroupLimits,1000L);
+        assertEquals(1, acquiredTriggers.size());
+        assertEquals(early.getKey(), acquiredTriggers.get(0).getKey());
+        this.fJobStore.releaseAcquiredTrigger(early);
+
+        acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 10000, 4, jobGroupLimits,205000);
+        assertEquals(2, acquiredTriggers.size());
+        assertEquals(early.getKey(), acquiredTriggers.get(0).getKey());
+        assertEquals(trigger1.getKey(), acquiredTriggers.get(1).getKey());
+        this.fJobStore.releaseAcquiredTrigger(early);
+        this.fJobStore.releaseAcquiredTrigger(trigger1);
+
+        this.fJobStore.removeTrigger(early.getKey());
+
+        acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 10000, 5, jobGroupLimits,100000L);
+        assertEquals(2, acquiredTriggers.size());
+        assertEquals(trigger1.getKey(), acquiredTriggers.get(0).getKey());
+        // trigger2 should not be present because of execution limit
+        assertEquals(trigger3.getKey(), acquiredTriggers.get(1).getKey());
+        // trigger4 should not be present because of execution limit
+        this.fJobStore.releaseAcquiredTrigger(trigger1);
+        this.fJobStore.releaseAcquiredTrigger(trigger3);
+
+        acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 10000, 6, jobGroupLimits,100000L);
+        assertEquals(2, acquiredTriggers.size());
+        assertEquals(trigger1.getKey(), acquiredTriggers.get(0).getKey());
+        // trigger2 should not be present because of execution limit
+        assertEquals(trigger3.getKey(), acquiredTriggers.get(1).getKey());
+        // trigger4 should not be present because of execution limit
+        this.fJobStore.releaseAcquiredTrigger(trigger1);
+        this.fJobStore.releaseAcquiredTrigger(trigger3);
+
+        acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 1, 5, jobGroupLimits,0L);
+        assertEquals(1, acquiredTriggers.size());
+        assertEquals(trigger1.getKey(), acquiredTriggers.get(0).getKey());
+        this.fJobStore.releaseAcquiredTrigger(trigger1);
+
+        acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 250, 5, jobGroupLimits,19999L);
+        assertEquals(1, acquiredTriggers.size());
+        assertEquals(trigger1.getKey(), acquiredTriggers.get(0).getKey());
+        // trigger2 should not be present because of execution limit
+        this.fJobStore.releaseAcquiredTrigger(trigger1);
+
+        acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 150, 5, jobGroupLimits,5000L);
+        assertEquals(1, acquiredTriggers.size());
+        assertEquals(trigger1.getKey(), acquiredTriggers.get(0).getKey());
+        this.fJobStore.releaseAcquiredTrigger(trigger1);
+    }
+
+    /**
+     *  Default is 'allowed', null is not being limited
+     */
+    public void testAcquireNextTriggerBatchExecutionLimitsDefaultAllowed() throws Exception {
+
+        if (!(fJobStore instanceof ExecutionLimitsAwareJobStore)) {
+            return;			// nothing to test here
+        }
+
+        long baseFireTime = System.currentTimeMillis() - 1000;
+
+        // usage of job groups is not quite correct here, but probably good enough for testing
+        OperableTrigger early =
+                new SimpleTriggerImpl("early", "triggerGroup1", this.fJobDetail.getName(),
+                        this.fJobDetail.getGroup(), new Date(baseFireTime),
+                        new Date(baseFireTime + 5), 2, 2000);
+        early.setExecutionGroup(EXEC_GROUP_1);
+        OperableTrigger trigger1 =
+                new SimpleTriggerImpl("trigger1", "triggerGroup1", this.fJobDetail.getName(),
+                        this.fJobDetail.getGroup(), new Date(baseFireTime + 200000),
+                        new Date(baseFireTime + 200005), 2, 2000);
+        trigger1.setExecutionGroup(EXEC_GROUP_2);
+        OperableTrigger trigger2 =
+                new SimpleTriggerImpl("trigger2", "triggerGroup1", this.fJobDetail.getName(),
+                        this.fJobDetail.getGroup(), new Date(baseFireTime + 210000),
+                        new Date(baseFireTime + 210005), 2, 2000);
+        trigger2.setExecutionGroup(EXEC_GROUP_OTHER);
+        OperableTrigger trigger3 =
+                new SimpleTriggerImpl("trigger3", "triggerGroup1", this.fJobDetail.getName(),
+                        this.fJobDetail.getGroup(), new Date(baseFireTime + 220000),
+                        new Date(baseFireTime + 220005), 2, 2000);
+        OperableTrigger trigger4 =
+                new SimpleTriggerImpl("trigger4", "triggerGroup1", this.fJobDetail.getName(),
+                        this.fJobDetail.getGroup(), new Date(baseFireTime + 230000),
+                        new Date(baseFireTime + 230005), 2, 2000);
+        OperableTrigger trigger10 =
+                new SimpleTriggerImpl("trigger10", "triggerGroup2", this.fJobDetail.getName(),
+                        this.fJobDetail.getGroup(), new Date(baseFireTime + 500000),
+                        new Date(baseFireTime + 700000), 2, 2000);
+
+        Map<String, Integer> jobGroupLimits = new HashMap<>();
+        jobGroupLimits.put(EXEC_GROUP_1, 0);
+        jobGroupLimits.put(EXEC_GROUP_2, 0);
+
+        early.computeFirstFireTime(null);
+        early.setMisfireInstruction(Trigger.MISFIRE_INSTRUCTION_IGNORE_MISFIRE_POLICY);
+        trigger1.computeFirstFireTime(null);
+        trigger2.computeFirstFireTime(null);
+        trigger3.computeFirstFireTime(null);
+        trigger4.computeFirstFireTime(null);
+        trigger10.computeFirstFireTime(null);
+        this.fJobStore.storeTrigger(early, false);
+        this.fJobStore.storeTrigger(trigger1, false);
+        this.fJobStore.storeTrigger(trigger2, false);
+        this.fJobStore.storeTrigger(trigger3, false);
+        this.fJobStore.storeTrigger(trigger4, false);
+        this.fJobStore.storeTrigger(trigger10, false);
+
+        long firstFireTime = new Date(trigger1.getNextFireTime().getTime()).getTime();
+
+        List<OperableTrigger> acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 10000, 4, jobGroupLimits,1000L);
+        System.out.println(acquiredTriggers);
+        assertEquals(1, acquiredTriggers.size());
+        // early should not be present because of execution limit
+        // trigger1 should not be present because of execution limit
+        // trigger2 is present because firstFireTime+10000 equals its fire time
+        assertEquals(trigger2.getKey(), acquiredTriggers.get(0).getKey());
+        this.fJobStore.releaseAcquiredTrigger(trigger2);
+
+        acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 10000, 4, jobGroupLimits,205000);
+        assertEquals(3, acquiredTriggers.size());
+        // early should not be present because of execution limit
+        // trigger1 should not be present because of execution limit
+        // trigger2 is present because firstFireTime+10000 equals its fire time
+        // trigger3/4 are present because of time window
+        assertEquals(trigger2.getKey(), acquiredTriggers.get(0).getKey());
+        assertEquals(trigger3.getKey(), acquiredTriggers.get(1).getKey());
+        assertEquals(trigger4.getKey(), acquiredTriggers.get(2).getKey());
+        this.fJobStore.releaseAcquiredTrigger(trigger2);
+        this.fJobStore.releaseAcquiredTrigger(trigger3);
+        this.fJobStore.releaseAcquiredTrigger(trigger4);
+
+        this.fJobStore.removeTrigger(early.getKey());
+
+        acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 10000, 5, jobGroupLimits,100000L);
+        assertEquals(3, acquiredTriggers.size());
+        // trigger1 should not be present because of execution limit
+        assertEquals(trigger2.getKey(), acquiredTriggers.get(0).getKey());
+        assertEquals(trigger3.getKey(), acquiredTriggers.get(1).getKey());
+        assertEquals(trigger4.getKey(), acquiredTriggers.get(2).getKey());
+        this.fJobStore.releaseAcquiredTrigger(trigger2);
+        this.fJobStore.releaseAcquiredTrigger(trigger3);
+        this.fJobStore.releaseAcquiredTrigger(trigger4);
+
+        acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 10000, 6, jobGroupLimits,100000L);
+        assertEquals(3, acquiredTriggers.size());
+        // trigger1 should not be present because of execution limit
+        assertEquals(trigger2.getKey(), acquiredTriggers.get(0).getKey());
+        assertEquals(trigger3.getKey(), acquiredTriggers.get(1).getKey());
+        assertEquals(trigger4.getKey(), acquiredTriggers.get(2).getKey());
+        this.fJobStore.releaseAcquiredTrigger(trigger2);
+        this.fJobStore.releaseAcquiredTrigger(trigger3);
+        this.fJobStore.releaseAcquiredTrigger(trigger4);
+
+        acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 1, 5, jobGroupLimits,0L);
+        assertEquals(0, acquiredTriggers.size());
+        // trigger1 should not be present because of execution limit
+        // trigger2 is too late
+
+        acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 250, 5, jobGroupLimits,19999L);
+        assertEquals(0, acquiredTriggers.size());
+        // trigger1 should not be present because of execution limit
+        // trigger2 is too late
+
+        acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 150, 5, jobGroupLimits,5000L);
+        assertEquals(0, acquiredTriggers.size());
+        // trigger1 should not be present because of execution limit
+    }
+
+    /**
+     *  Nothing is allowed
+     */
+    public void testAcquireNextTriggerBatchExecutionLimitsNothingAllowed() throws Exception {
+
+        if (!(fJobStore instanceof ExecutionLimitsAwareJobStore)) {
+            return;			// nothing to test here
+        }
+
+        long baseFireTime = System.currentTimeMillis() - 1000;
+
+        // usage of job groups is not quite correct here, but probably good enough for testing
+        OperableTrigger early =
+                new SimpleTriggerImpl("early", "triggerGroup1", this.fJobDetail.getName(),
+                        this.fJobDetail.getGroup(), new Date(baseFireTime),
+                        new Date(baseFireTime + 5), 2, 2000);
+        early.setExecutionGroup(EXEC_GROUP_1);
+        OperableTrigger trigger1 =
+                new SimpleTriggerImpl("trigger1", "triggerGroup1", this.fJobDetail.getName(),
+                        this.fJobDetail.getGroup(), new Date(baseFireTime + 200000),
+                        new Date(baseFireTime + 200005), 2, 2000);
+        trigger1.setExecutionGroup(EXEC_GROUP_2);
+        OperableTrigger trigger2 =
+                new SimpleTriggerImpl("trigger2", "triggerGroup1", this.fJobDetail.getName(),
+                        this.fJobDetail.getGroup(), new Date(baseFireTime + 210000),
+                        new Date(baseFireTime + 210005), 2, 2000);
+        trigger2.setExecutionGroup(EXEC_GROUP_OTHER);
+        OperableTrigger trigger3 =
+                new SimpleTriggerImpl("trigger3", "triggerGroup1", this.fJobDetail.getName(),
+                        this.fJobDetail.getGroup(), new Date(baseFireTime + 220000),
+                        new Date(baseFireTime + 220005), 2, 2000);
+        OperableTrigger trigger4 =
+                new SimpleTriggerImpl("trigger4", "triggerGroup1", this.fJobDetail.getName(),
+                        this.fJobDetail.getGroup(), new Date(baseFireTime + 230000),
+                        new Date(baseFireTime + 230005), 2, 2000);
+        OperableTrigger trigger10 =
+                new SimpleTriggerImpl("trigger10", "triggerGroup2", this.fJobDetail.getName(),
+                        this.fJobDetail.getGroup(), new Date(baseFireTime + 500000),
+                        new Date(baseFireTime + 700000), 2, 2000);
+
+        Map<String, Integer> jobGroupLimits = new HashMap<>();
+        jobGroupLimits.put(Scheduler.LIMIT_FOR_OTHER_GROUPS, 0);
+
+        early.computeFirstFireTime(null);
+        early.setMisfireInstruction(Trigger.MISFIRE_INSTRUCTION_IGNORE_MISFIRE_POLICY);
+        trigger1.computeFirstFireTime(null);
+        trigger2.computeFirstFireTime(null);
+        trigger3.computeFirstFireTime(null);
+        trigger4.computeFirstFireTime(null);
+        trigger10.computeFirstFireTime(null);
+        this.fJobStore.storeTrigger(early, false);
+        this.fJobStore.storeTrigger(trigger1, false);
+        this.fJobStore.storeTrigger(trigger2, false);
+        this.fJobStore.storeTrigger(trigger3, false);
+        this.fJobStore.storeTrigger(trigger4, false);
+        this.fJobStore.storeTrigger(trigger10, false);
+
+        long firstFireTime = new Date(trigger1.getNextFireTime().getTime()).getTime();
+
+        List<OperableTrigger> acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 10000, 4, jobGroupLimits,1000L);
+        assertEquals(0, acquiredTriggers.size());
+
+        acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 10000, 4, jobGroupLimits,205000);
+        assertEquals(0, acquiredTriggers.size());
+
+        this.fJobStore.removeTrigger(early.getKey());
+
+        acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 10000, 5, jobGroupLimits,100000L);
+        assertEquals(0, acquiredTriggers.size());
+
+        acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 10000, 6, jobGroupLimits,100000L);
+        assertEquals(0, acquiredTriggers.size());
+
+        acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 1, 5, jobGroupLimits,0L);
+        assertEquals(0, acquiredTriggers.size());
+
+        acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 250, 5, jobGroupLimits,19999L);
+        assertEquals(0, acquiredTriggers.size());
+
+        acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 150, 5, jobGroupLimits,5000L);
+        assertEquals(0, acquiredTriggers.size());
     }
 
     @SuppressWarnings("deprecation")

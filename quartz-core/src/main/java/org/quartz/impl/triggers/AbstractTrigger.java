@@ -98,6 +98,8 @@ public abstract class AbstractTrigger<T extends Trigger> implements OperableTrig
 
     private transient TriggerKey key = null;
 
+    private String executionGroup = null;
+
     /*
     * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     *
@@ -653,6 +655,20 @@ public abstract class AbstractTrigger<T extends Trigger> implements OperableTrig
      * </p>
      */
     public abstract Date getFinalFireTime();
+
+    /**
+     * <p>Returns the execution group this trigger belongs to (might be null).</p>
+     */
+    public String getExecutionGroup() {
+        return executionGroup;
+    }
+
+    /**
+     * <p>Sets the execution group for this trigger.</p>
+     */
+    public void setExecutionGroup(String executionGroup) {
+        this.executionGroup = executionGroup;
+    }
 
     /**
      * <p>

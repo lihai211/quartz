@@ -30,9 +30,7 @@ import java.sql.SQLException;
 
 import org.quartz.Calendar;
 import org.quartz.JobDetail;
-import org.quartz.spi.ClassLoadHelper;
 import org.quartz.spi.OperableTrigger;
-import org.slf4j.Logger;
 
 /**
  * <p>
@@ -183,6 +181,7 @@ public class PointbaseDelegate extends StdJDBCDelegate {
             ps.setInt(13, trigger.getMisfireInstruction());
             ps.setBinaryStream(14, bais, len);
             ps.setInt(15, trigger.getPriority());
+            ps.setString(16, trigger.getExecutionGroup());
             
             insertResult = ps.executeUpdate();
             
@@ -248,9 +247,10 @@ public class PointbaseDelegate extends StdJDBCDelegate {
             ps.setInt(11, trigger.getMisfireInstruction());
             
             ps.setInt(12, trigger.getPriority());
-            ps.setBinaryStream(13, bais, len);
-            ps.setString(14, trigger.getKey().getName());
-            ps.setString(15, trigger.getKey().getGroup());
+            ps.setString(13, trigger.getExecutionGroup());
+            ps.setBinaryStream(14, bais, len);
+            ps.setString(15, trigger.getKey().getName());
+            ps.setString(16, trigger.getKey().getGroup());
 
             insertResult = ps.executeUpdate();
             

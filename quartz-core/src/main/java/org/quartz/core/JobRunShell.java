@@ -371,6 +371,10 @@ public class JobRunShell extends SchedulerListenerSupport implements Runnable {
         return true;
     }
 
+    public String getExecutionGroup() {
+        return firedTriggerBundle.getTrigger().getExecutionGroup();
+    }
+
     static class VetoedException extends Exception {
 
         private static final long serialVersionUID = 1539955697495918463L;

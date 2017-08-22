@@ -24,7 +24,6 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -45,10 +44,11 @@ import org.quartz.TriggerKey;
 import org.quartz.Trigger.CompletedExecutionInstruction;
 import org.quartz.Trigger.TriggerState;
 import org.quartz.Trigger.TriggerTimeComparator;
-import org.quartz.impl.JobDetailImpl;
+import org.quartz.impl.jdbcjobstore.StdJDBCDelegate;
 import org.quartz.impl.matchers.GroupMatcher;
 import org.quartz.impl.matchers.StringMatcher;
 import org.quartz.spi.ClassLoadHelper;
+import org.quartz.spi.ExecutionLimitsAwareJobStore;
 import org.quartz.spi.JobStore;
 import org.quartz.spi.OperableTrigger;
 import org.quartz.spi.SchedulerSignaler;
@@ -56,8 +56,6 @@ import org.quartz.spi.TriggerFiredBundle;
 import org.quartz.spi.TriggerFiredResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static org.quartz.impl.matchers.EverythingMatcher.allTriggers;
 
 /**
  * <p>
@@ -76,7 +74,7 @@ import static org.quartz.impl.matchers.EverythingMatcher.allTriggers;
  * @author Sharada Jambula
  * @author Eric Mueller
  */
-public class RAMJobStore implements JobStore {
+public class RAMJobStore implements JobStore, ExecutionLimitsAwareJobStore {
 
     /*
      * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1445,6 +1443,10 @@ public class RAMJobStore implements JobStore {
      * @see #releaseAcquiredTrigger(OperableTrigger)
      */
     public List<OperableTrigger> acquireNextTriggers(long noLaterThan, int maxCount, long timeWindow) {
+        return acquireNextTriggers(noLaterThan, maxCount, null, timeWindow);
+    }
+
+    public List<OperableTrigger> acquireNextTriggers(long noLaterThan, int maxCount, Map<String, Integer> executionLimits, long timeWindow) {
         synchronized (lock) {
             List<OperableTrigger> result = new ArrayList<OperableTrigger>();
             Set<JobKey> acquiredJobKeysForNoConcurrentExec = new HashSet<JobKey>();
@@ -1454,6 +1456,10 @@ public class RAMJobStore implements JobStore {
             // return empty list if store has no triggers.
             if (timeTriggers.size() == 0)
                 return result;
+
+            // execution limits will be modified during processing
+            Map<String, Integer> limitsWorkingCopy = executionLimits != null ?
+                    new HashMap<>(executionLimits) : new HashMap<String, Integer>();
             
             while (true) {
                 TriggerWrapper tw;
@@ -1494,6 +1500,13 @@ public class RAMJobStore implements JobStore {
                     } else {
                         acquiredJobKeysForNoConcurrentExec.add(jobKey);
                     }
+                }
+
+                // if trigger cannot be acquired because of job group limit, do the same
+                String executionGroup = tw.getTrigger().getExecutionGroup();
+                if (!StdJDBCDelegate.checkExecutionLimits(executionGroup, limitsWorkingCopy)) {
+                    excludedTriggers.add(tw);
+                    continue;
                 }
 
                 tw.state = TriggerWrapper.STATE_ACQUIRED;
@@ -1754,6 +1767,10 @@ public class RAMJobStore implements JobStore {
         return false;
     }
 
+    @Override
+    public void setExecutionLimits(Map<String, Integer> executionLimits) {
+        // actually not needed here
+    }
 }
 
 /*******************************************************************************

@@ -24,16 +24,7 @@ import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -69,6 +60,7 @@ import org.quartz.impl.SchedulerRepository;
 import org.quartz.impl.matchers.GroupMatcher;
 import org.quartz.listeners.SchedulerListenerSupport;
 import org.quartz.simpl.PropertySettingJobFactory;
+import org.quartz.spi.ExecutionLimitsAwareJobStore;
 import org.quartz.spi.JobFactory;
 import org.quartz.spi.OperableTrigger;
 import org.quartz.spi.SchedulerPlugin;
@@ -146,6 +138,9 @@ public class QuartzScheduler implements RemotableQuartzScheduler {
      */
 
     private QuartzSchedulerResources resources;
+
+    // TODO move to appropriate place
+    private Map<String, Integer> executionLimits;
 
     private QuartzSchedulerThread schedThread;
 
@@ -2384,6 +2379,23 @@ J     *
         }
     }
 
+    public Map<String, Integer> getExecutionLimits() {
+        return executionLimits != null ? Collections.unmodifiableMap(executionLimits) : null;
+    }
+
+    public void setExecutionLimits(Map<String, Integer> map) {
+        this.executionLimits = map != null ? new HashMap<>(map) : null;
+        if (resources.getJobStore() instanceof ExecutionLimitsAwareJobStore) {
+            ((ExecutionLimitsAwareJobStore) resources.getJobStore()).setExecutionLimits(this.executionLimits);
+        }
+    }
+
+    public void setExecutionLimit(String jobGroup, Integer limit) {
+        Map<String, Integer> newMap = executionLimits != null ?
+                new HashMap<>(executionLimits) : new HashMap<String, Integer>();
+        newMap.put(jobGroup, limit);
+        setExecutionLimits(newMap);
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////

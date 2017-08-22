@@ -18,15 +18,15 @@
 
 package org.quartz.core;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.quartz.JobPersistenceException;
+import org.quartz.Scheduler;
 import org.quartz.SchedulerException;
 import org.quartz.Trigger;
 import org.quartz.Trigger.CompletedExecutionInstruction;
+import org.quartz.spi.ExecutionLimitsAwareJobStore;
 import org.quartz.spi.JobStore;
 import org.quartz.spi.OperableTrigger;
 import org.quartz.spi.TriggerFiredBundle;
@@ -284,8 +284,11 @@ public class QuartzSchedulerThread extends Thread {
 
                     clearSignaledSchedulingChange();
                     try {
+                        Map<String, Integer> executionLimits =
+                                qsRsrcs.getJobStore() instanceof ExecutionLimitsAwareJobStore ? computeAvailableExecutionGroupsLimits() : null;
                         triggers = qsRsrcs.getJobStore().acquireNextTriggers(
-                                now + idleWaitTime, Math.min(availThreadCount, qsRsrcs.getMaxBatchSize()), qsRsrcs.getBatchTimeWindow());
+                                now + idleWaitTime, Math.min(availThreadCount, qsRsrcs.getMaxBatchSize()),
+                                executionLimits, qsRsrcs.getBatchTimeWindow());
                         acquiresFailed = 0;
                         if (log.isDebugEnabled())
                             log.debug("batch acquisition of " + (triggers == null ? 0 : triggers.size()) + " triggers");
@@ -439,6 +442,39 @@ public class QuartzSchedulerThread extends Thread {
         // drop references to scheduler stuff to aid garbage collection...
         qs = null;
         qsRsrcs = null;
+    }
+
+    /**
+     * Takes prescribed limits for execution groups (if any), and lowers them according to jobs currently executing on this node.
+     */
+    private Map<String, Integer> computeAvailableExecutionGroupsLimits() {
+        Map<String, Integer> runningJobsPerExecutionGroup = qsRsrcs.getThreadPool().getRunningJobsPerExecutionGroup();
+        Map<String, Integer> limits = qs.getExecutionLimits();
+        if (limits == null) {
+            return null;            // no limits => nothing to do
+        }
+        Integer defaultLimit = limits.get(Scheduler.LIMIT_FOR_OTHER_GROUPS);
+        Map<String, Integer> availableLimits = new HashMap<>(limits);
+        for (Map.Entry<String, Integer> running : runningJobsPerExecutionGroup.entrySet()) {
+            String runningGroup = running.getKey();     // nullable
+            int runningCount = running.getValue();
+            if (!availableLimits.containsKey(runningGroup)) {
+                if (defaultLimit != null) {
+                    availableLimits.put(runningGroup, Math.max(defaultLimit-runningCount, 0));
+                }
+            } else {
+                Integer limit = availableLimits.get(runningGroup);
+                if (limit != null) {
+                    availableLimits.put(runningGroup, Math.max(limit-runningCount, 0));
+                } else {
+                    // null means "no limit", so nothing to update here
+                }
+            }
+        }
+        if (defaultLimit != null) {
+            availableLimits.put(Scheduler.LIMIT_FOR_OTHER_GROUPS, defaultLimit);
+        }
+        return availableLimits;
     }
 
     private static final long MIN_DELAY = 20;

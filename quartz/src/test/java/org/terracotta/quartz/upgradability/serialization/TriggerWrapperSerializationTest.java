@@ -254,8 +254,18 @@ public class TriggerWrapperSerializationTest {
     }
 
     @Override
+    public String getExecutionGroup() {
+      return null;
+    }
+
+    @Override
     public DummyOperableTrigger clone() {
       return new DummyOperableTrigger();
+    }
+
+    @Override
+    public void setExecutionGroup(String executionGroup) {
+      throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
   }
 }

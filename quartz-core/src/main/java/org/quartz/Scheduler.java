@@ -18,10 +18,7 @@
 
 package org.quartz;
 
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import org.quartz.Trigger.TriggerState;
 import org.quartz.impl.matchers.GroupMatcher;
@@ -189,6 +186,15 @@ public interface Scheduler {
      * @see org.quartz.JobDetail#requestsRecovery()
      */
     String FAILED_JOB_ORIGINAL_TRIGGER_SCHEDULED_FIRETIME_IN_MILLISECONDS =  "QRTZ_FAILED_JOB_ORIG_TRIGGER_SCHEDULED_FIRETIME_IN_MILLISECONDS_AS_STRING";
+
+    /**
+     * When specifying execution limits using a map (issue #175), this key is used to specify limit for each execution group
+     * that is not explicitly listed in the map (even for 'null' execution group, if not listed explicitly).
+     *
+     * @see #setExecutionLimits(Map)
+     * @see #getExecutionLimits()
+     */
+    String LIMIT_FOR_OTHER_GROUPS = "*";
 
     /*
      * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -966,5 +972,16 @@ public interface Scheduler {
      */
     void clear() throws SchedulerException;
 
+    /**
+     * Gets execution limits for this scheduler (if supported by the job store).
+     * (Not implemented for JMX scheduler access yet.)
+     */
+    Map<String, Integer> getExecutionLimits() throws SchedulerException;
 
+    /**
+     * Sets execution limits for this scheduler (if supported by the job store).
+     * (Not implemented for JMX scheduler access yet.)
+     * @param executionLimits
+     */
+    void setExecutionLimits(Map<String, Integer> executionLimits) throws SchedulerException;
 }

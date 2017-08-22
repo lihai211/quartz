@@ -59,6 +59,8 @@ public class FiredTriggerRecord implements java.io.Serializable {
 
     private int priority;
 
+    private String executionGroup;
+
     /*
      * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
      * 
@@ -147,8 +149,14 @@ public class FiredTriggerRecord implements java.io.Serializable {
     public void setPriority(int priority) {
         this.priority = priority;
     }
-    
 
+    public String getExecutionGroup() {
+        return executionGroup;
+    }
+
+    public void setExecutionGroup(String executionGroup) {
+        this.executionGroup = executionGroup;
+    }
 }
 
 // EOF

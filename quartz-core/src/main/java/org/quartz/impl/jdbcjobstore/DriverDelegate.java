@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.quartz.Calendar;
@@ -134,25 +135,37 @@ public interface DriverDelegate {
      * 
      * @param conn the DB Connection
      * @param count the most misfired triggers to return, negative for all
-     * @param resultList Output parameter.  A List of 
+     * @param resultList Output parameter.  A List of
      *      <code>{@link org.quartz.utils.Key}</code> objects.  Must not be null.
-     *          
+     * @param executionLimits used to filter triggers based on allowed execution groups
+     *                        (This is only an approximation, because we skip the trigger
+     *                        only if limits strictly forbid its execution group. If limits
+     *                        allow N>0 threads for a given group, and there are M>N triggers,
+     *                        all of them are fetched. This is sorted out during actual trigger
+     *                        acquisition.)
      * @return Whether there are more misfired triggers left to find beyond
      *         the given count.
      */
-    boolean hasMisfiredTriggersInState(Connection conn, String state1, 
-        long ts, int count, List<TriggerKey> resultList) throws SQLException;
+    boolean hasMisfiredTriggersInState(Connection conn, String state1,
+            long ts, int count, List<TriggerKey> resultList,
+            Map<String, Integer> executionLimits) throws SQLException;
     
     /**
      * <p>
      * Get the number of triggers in the given state that have
      * misfired - according to the given timestamp.
      * </p>
-     * 
+     *
      * @param conn the DB Connection
+     * @param executionLimits Execution limits for this node. Used to skip irrelevant triggers.
+     *                        (This is only an approximation, because we skip the trigger
+     *                        only if limits strictly forbid its execution group. If limits
+     *                        allow N>0 threads for a given group, and there are M>N triggers,
+     *                        all of them are counted. This is sorted out during actual trigger
+     *                        acquisition.)
      */
     int countMisfiredTriggersInState(
-        Connection conn, String state1, long ts) throws SQLException;
+            Connection conn, String state1, long ts, Map<String, Integer> executionLimits) throws SQLException;
 
     /**
      * <p>
@@ -935,13 +948,13 @@ public interface DriverDelegate {
      * @param conn
      *          the DB Connection
      * @param noLaterThan
-     *          highest value of <code>getNextFireTime()</code> of the triggers (exclusive)
+     *          highest value of <code>getNextFireTime()</code> of the triggers (exclusive) TODO doesn't match the SQL code
      * @param noEarlierThan 
-     *          highest value of <code>getNextFireTime()</code> of the triggers (inclusive)
+     *          lowest value of <code>getNextFireTime()</code> of the triggers (inclusive)
      *          
      * @return A (never null, possibly empty) list of the identifiers (Key objects) of the next triggers to be fired.
      * 
-     * @deprecated - This remained for compatibility reason. Use {@link #selectTriggerToAcquire(Connection, long, long, int)} instead. 
+     * @deprecated - This remained for compatibility reason. Use {@link #selectTriggerToAcquire(Connection, long, long, int, Integer, Map)} instead.
      */
     public List<TriggerKey> selectTriggerToAcquire(Connection conn, long noLaterThan, long noEarlierThan)
         throws SQLException;
@@ -955,15 +968,23 @@ public interface DriverDelegate {
      * @param conn
      *          the DB Connection
      * @param noLaterThan
-     *          highest value of <code>getNextFireTime()</code> of the triggers (exclusive)
-     * @param noEarlierThan 
-     *          highest value of <code>getNextFireTime()</code> of the triggers (inclusive)
-     * @param maxCount 
+     *          highest value of <code>getNextFireTime()</code> of the triggers (exclusive) TODO doesn't match the SQL code
+     * @param noEarlierThan
+     *          lowest value of <code>getNextFireTime()</code> of the triggers (inclusive)
+     * @param maxCount
      *          maximum number of trigger keys allow to acquired in the returning list.
-     *          
+     * @param maxFetchCount
+     *          how many triggers to fetch from DB at most. It might be greater than maxCount, because not all triggers fetched
+     *          from DB are really returned: they are subject to executionLimits, if they are specified. However, this method guarantees
+     *          that at least one trigger fetched from DB will be really returned to the caller . Because of this, using maxFetchCount
+     *          is not strictly necessary. It can be seen more as an optimization feature. If null or less than maxCount, maxCount is used for
+     *          this purpose.
+     * @param executionLimits
+     *          how many triggers in each execution group we may return - this is checked in addition to maxCount
      * @return A (never null, possibly empty) list of the identifiers (Key objects) of the next triggers to be fired.
      */
-    public List<TriggerKey> selectTriggerToAcquire(Connection conn, long noLaterThan, long noEarlierThan, int maxCount)
+    public List<TriggerKey> selectTriggerToAcquire(Connection conn, long noLaterThan, long noEarlierThan, int maxCount,
+            Integer maxFetchCount, Map<String, Integer> executionLimits)
         throws SQLException;
 
     /**

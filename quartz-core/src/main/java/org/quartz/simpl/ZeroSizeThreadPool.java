@@ -22,6 +22,9 @@ import org.slf4j.LoggerFactory;
 import org.quartz.SchedulerConfigException;
 import org.quartz.spi.ThreadPool;
 
+import java.util.Collections;
+import java.util.Map;
+
 /**
  * <p>
  * This is class is a simple implementation of a zero size thread pool, based on the
@@ -111,4 +114,8 @@ public class ZeroSizeThreadPool implements ThreadPool {
     public void setInstanceName(String schedName) {
     }
 
+    @Override
+    public Map<String, Integer> getRunningJobsPerExecutionGroup() {
+        return Collections.emptyMap();
+    }
 }

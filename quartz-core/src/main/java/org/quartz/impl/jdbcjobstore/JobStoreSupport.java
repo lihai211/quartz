@@ -52,6 +52,7 @@ import org.quartz.impl.matchers.StringMatcher;
 import org.quartz.impl.matchers.StringMatcher.StringOperatorName;
 import org.quartz.impl.triggers.SimpleTriggerImpl;
 import org.quartz.spi.ClassLoadHelper;
+import org.quartz.spi.ExecutionLimitsAwareJobStore;
 import org.quartz.spi.JobStore;
 import org.quartz.spi.OperableTrigger;
 import org.quartz.spi.SchedulerSignaler;
@@ -71,7 +72,7 @@ import org.slf4j.LoggerFactory;
  * @author <a href="mailto:jeff@binaryfeed.org">Jeffrey Wescott</a>
  * @author James House
  */
-public abstract class JobStoreSupport implements JobStore, Constants {
+public abstract class JobStoreSupport implements JobStore, Constants, ExecutionLimitsAwareJobStore {
 
     /*
      * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -102,7 +103,7 @@ public abstract class JobStoreSupport implements JobStore, Constants {
     protected String instanceId;
 
     protected String instanceName;
-    
+
     protected String delegateClassName;
 
     protected String delegateInitString;
@@ -158,7 +159,18 @@ public abstract class JobStoreSupport implements JobStore, Constants {
     
     private volatile boolean schedulerRunning = false;
     private volatile boolean shutdown = false;
-    
+
+    // this should be the same value as in the scheduler
+    // it is copied here to optimize misfired triggers fetching
+    // (to skip those triggers that have no chance of execution on the current node)
+    private Map<String, Integer> executionLimits;
+
+    /**
+     * Maximum number of triggers to fetch from DB (relevant if larger than maximum number of triggers to get),
+     * see {@link DriverDelegate#selectTriggerToAcquire(Connection, long, long, int, Integer, Map)}.
+     */
+    private Integer triggerAcquisitionMaxFetchCount;
+
     /*
      * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
      * 
@@ -622,6 +634,23 @@ public abstract class JobStoreSupport implements JobStore, Constants {
         return dbRetryInterval;
     }
 
+    /**
+     * Returns maximum number of triggers to fetch from DB (relevant if larger than maximum number of triggers to get),
+     * see {@link DriverDelegate#selectTriggerToAcquire(Connection, long, long, int, Integer, Map)}.
+     */
+    public Integer getTriggerAcquisitionMaxFetchCount() {
+        return triggerAcquisitionMaxFetchCount;
+    }
+
+    /**
+     * Sets maximum number of triggers to fetch from DB (relevant if larger than maximum number of triggers to get),
+     * see {@link DriverDelegate#selectTriggerToAcquire(Connection, long, long, int, Integer, Map)}.
+     */
+    /* called also reflectively */
+    public void setTriggerAcquisitionMaxFetchCount(Integer triggerAcquisitionMaxFetchCount) {
+        this.triggerAcquisitionMaxFetchCount = triggerAcquisitionMaxFetchCount;
+    }
+
     //---------------------------------------------------------------------------
     // interface methods
     //---------------------------------------------------------------------------
@@ -958,11 +987,11 @@ public abstract class JobStoreSupport implements JobStore, Constants {
         List<TriggerKey> misfiredTriggers = new LinkedList<TriggerKey>();
         long earliestNewTime = Long.MAX_VALUE;
         // We must still look for the MISFIRED state in case triggers were left 
-        // in this state when upgrading to this version that does not support it. 
+        // in this state when upgrading to this version that does not support it.
         boolean hasMoreMisfiredTriggers =
             getDelegate().hasMisfiredTriggersInState(
                 conn, STATE_WAITING, getMisfireTime(), 
-                maxMisfiresToHandleAtATime, misfiredTriggers);
+                maxMisfiresToHandleAtATime, misfiredTriggers, executionLimits);
 
         if (hasMoreMisfiredTriggers) {
             getLog().info(
@@ -2781,6 +2810,11 @@ public abstract class JobStoreSupport implements JobStore, Constants {
         return getInstanceId() + ftrCtr++;
     }
 
+    public List<OperableTrigger> acquireNextTriggers(final long noLaterThan, final int maxCount, final long timeWindow)
+            throws JobPersistenceException {
+        return acquireNextTriggers(noLaterThan, maxCount, null, timeWindow);
+    }
+
     /**
      * <p>
      * Get a handle to the next N triggers to be fired, and mark them as 'reserved'
@@ -2790,7 +2824,7 @@ public abstract class JobStoreSupport implements JobStore, Constants {
      * @see #releaseAcquiredTrigger(OperableTrigger)
      */
     @SuppressWarnings("unchecked")
-    public List<OperableTrigger> acquireNextTriggers(final long noLaterThan, final int maxCount, final long timeWindow)
+    public List<OperableTrigger> acquireNextTriggers(final long noLaterThan, final int maxCount, final Map<String, Integer> executionLimits, final long timeWindow)
         throws JobPersistenceException {
         
         String lockName;
@@ -2802,7 +2836,7 @@ public abstract class JobStoreSupport implements JobStore, Constants {
         return executeInNonManagedTXLock(lockName, 
                 new TransactionCallback<List<OperableTrigger>>() {
                     public List<OperableTrigger> execute(Connection conn) throws JobPersistenceException {
-                        return acquireNextTrigger(conn, noLaterThan, maxCount, timeWindow);
+                        return acquireNextTrigger(conn, noLaterThan, maxCount, executionLimits, timeWindow);
                     }
                 },
                 new TransactionValidator<List<OperableTrigger>>() {
@@ -2828,7 +2862,7 @@ public abstract class JobStoreSupport implements JobStore, Constants {
     
     // FUTURE_TODO: this really ought to return something like a FiredTriggerBundle,
     // so that the fireInstanceId doesn't have to be on the trigger...
-    protected List<OperableTrigger> acquireNextTrigger(Connection conn, long noLaterThan, int maxCount, long timeWindow)
+    protected List<OperableTrigger> acquireNextTrigger(Connection conn, long noLaterThan, int maxCount, Map<String, Integer> executionLimits, long timeWindow)
         throws JobPersistenceException {
         if (timeWindow < 0) {
           throw new IllegalArgumentException();
@@ -2841,7 +2875,7 @@ public abstract class JobStoreSupport implements JobStore, Constants {
         do {
             currentLoopCount ++;
             try {
-                List<TriggerKey> keys = getDelegate().selectTriggerToAcquire(conn, noLaterThan + timeWindow, getMisfireTime(), maxCount);
+                List<TriggerKey> keys = getDelegate().selectTriggerToAcquire(conn, noLaterThan + timeWindow, getMisfireTime(), maxCount, triggerAcquisitionMaxFetchCount, executionLimits);
                 
                 // No trigger is ready to fire yet.
                 if (keys == null || keys.size() == 0)
@@ -3237,7 +3271,7 @@ public abstract class JobStoreSupport implements JobStore, Constants {
             // misfired triggers requiring recovery.
             int misfireCount = (getDoubleCheckLockMisfireHandler()) ?
                 getDelegate().countMisfiredTriggersInState(
-                    conn, STATE_WAITING, getMisfireTime()) : 
+                    conn, STATE_WAITING, getMisfireTime(), executionLimits) :
                 Integer.MAX_VALUE;
             
             if (misfireCount == 0) {
@@ -3542,6 +3576,7 @@ public abstract class JobStoreSupport implements JobStore, Constants {
                                 rcvryTrig.setJobGroup(jKey.getGroup());
                                 rcvryTrig.setMisfireInstruction(SimpleTrigger.MISFIRE_INSTRUCTION_IGNORE_MISFIRE_POLICY);
                                 rcvryTrig.setPriority(ftRec.getPriority());
+                                rcvryTrig.setExecutionGroup(ftRec.getExecutionGroup());
                                 JobDataMap jd = getDelegate().selectTriggerJobDataMap(conn, tKey.getName(), tKey.getGroup());
                                 jd.put(Scheduler.FAILED_JOB_ORIGINAL_TRIGGER_NAME, tKey.getName());
                                 jd.put(Scheduler.FAILED_JOB_ORIGINAL_TRIGGER_GROUP, tKey.getGroup());
@@ -4041,6 +4076,12 @@ public abstract class JobStoreSupport implements JobStore, Constants {
                 }//while !shutdown
             }
         }
+    }
+
+    // other
+
+    public void setExecutionLimits(Map<String, Integer> executionLimits) {
+        this.executionLimits = executionLimits;
     }
 }
 
