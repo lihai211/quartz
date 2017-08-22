@@ -115,7 +115,7 @@ public class ZeroSizeThreadPool implements ThreadPool {
     }
 
     @Override
-    public Map<String, Integer> getExecutingJobGroupsCounts() {
+    public Map<String, Integer> getRunningJobsPerExecutionGroup() {
         return Collections.emptyMap();
     }
 }

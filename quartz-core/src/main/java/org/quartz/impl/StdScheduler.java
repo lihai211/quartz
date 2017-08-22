@@ -624,12 +624,12 @@ public class StdScheduler implements Scheduler {
     }
 
     @Override
-    public Map<String, Integer> getJobGroupsExecutionLimits() throws SchedulerException {
-        return sched.getJobGroupsExecutionLimits();
+    public Map<String, Integer> getExecutionLimits() throws SchedulerException {
+        return sched.getExecutionLimits();
     }
 
     @Override
-    public void setJobGroupsExecutionLimits(Map<String, Integer> executionLimits) throws SchedulerException {
-        sched.setJobGroupsExecutionLimits(executionLimits);
+    public void setExecutionLimits(Map<String, Integer> executionLimits) throws SchedulerException {
+        sched.setExecutionLimits(executionLimits);
     }
 }

@@ -944,12 +944,12 @@ public class RemoteScheduler implements Scheduler {
                 "Operation not supported for remote schedulers.");
     }
 
-    public Map<String, Integer> getJobGroupsExecutionLimits() throws SchedulerException {
-        return getRemoteScheduler().getJobGroupsExecutionLimits();
+    public Map<String, Integer> getExecutionLimits() throws SchedulerException {
+        return getRemoteScheduler().getExecutionLimits();
     }
 
-    public void setJobGroupsExecutionLimits(Map<String, Integer> executionLimits) throws SchedulerException {
-        getRemoteScheduler().setJobGroupsExecutionLimits(executionLimits);
+    public void setExecutionLimits(Map<String, Integer> executionLimits) throws SchedulerException {
+        getRemoteScheduler().setExecutionLimits(executionLimits);
     }
 
 }

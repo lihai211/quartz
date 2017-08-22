@@ -326,4 +326,9 @@ public interface Trigger extends Serializable, Cloneable, Comparable<Trigger> {
             return compare(t1.getNextFireTime(), t1.getPriority(), t1.getKey(), t2.getNextFireTime(), t2.getPriority(), t2.getKey());
         }
     }
+
+    /**
+     * Execution group of this trigger (may be null).
+     */
+    String getExecutionGroup();
 }

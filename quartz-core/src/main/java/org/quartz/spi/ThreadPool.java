@@ -124,9 +124,9 @@ public interface ThreadPool {
     void setInstanceName(String schedName);
 
     /**
-     * <p>Returns the number of jobs in execution, according to their job group.</p>
+     * <p>Returns the number of jobs in execution, according to their execution group.</p>
      *
      * @since 2.3.1
      */
-    Map<String,Integer> getExecutingJobGroupsCounts();
+    Map<String,Integer> getRunningJobsPerExecutionGroup();
 }

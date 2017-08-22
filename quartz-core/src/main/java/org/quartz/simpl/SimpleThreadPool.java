@@ -396,15 +396,15 @@ public class SimpleThreadPool implements ThreadPool {
     }
 
     @Override
-    public Map<String, Integer> getExecutingJobGroupsCounts() {
+    public Map<String, Integer> getRunningJobsPerExecutionGroup() {
         synchronized (nextRunnableLock) {
             Map<String, Integer> rv = new HashMap<>();
             for (WorkerThread busyWorker : busyWorkers) {
                 if (busyWorker.runnable instanceof JobRunShell) {
                     JobRunShell jobRunShell = (JobRunShell) busyWorker.runnable;
-                    String jobGroup = jobRunShell.getJobGroup();
-                    Integer c = rv.get(jobGroup);
-                    rv.put(jobGroup, c != null ? c+1 : 1);
+                    String executionGroup = jobRunShell.getExecutionGroup();
+                    Integer c = rv.get(executionGroup);
+                    rv.put(executionGroup, c != null ? c+1 : 1);
                 }
             }
             return rv;

@@ -71,6 +71,7 @@ public class TriggerBuilder<T extends Trigger> {
     private String calendarName;
     private JobKey jobKey;
     private JobDataMap jobDataMap = new JobDataMap();
+    private String executionGroup;
     
     private ScheduleBuilder<?> scheduleBuilder = null;
     
@@ -113,7 +114,8 @@ public class TriggerBuilder<T extends Trigger> {
         
         if(!jobDataMap.isEmpty())
             trig.setJobDataMap(jobDataMap);
-        
+
+        trig.setExecutionGroup(executionGroup);
         return (T) trig;
     }
 
@@ -410,6 +412,17 @@ public class TriggerBuilder<T extends Trigger> {
             newJobDataMap.put(dataKey, jobDataMap.get(dataKey));
         }
         jobDataMap = newJobDataMap; // set new map as the map to use
+        return this;
+    }
+
+    /**
+     * Set execution group for this trigger.
+     * @param executionGroup execution group (nullable)
+     * @return the updated TriggerBuilder
+     */
+
+    public TriggerBuilder<T> executionGroup(String executionGroup) {
+        this.executionGroup = executionGroup;
         return this;
     }
     

@@ -27,6 +27,8 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Arrays;
+import java.util.Collections;
 
 import org.quartz.JobPersistenceException;
 import org.quartz.TriggerKey;
@@ -148,5 +150,55 @@ public class StdJDBCDelegateTest extends TestCase {
             return testDelegate;
         }
     }
+
+    public void testExecutionGroupClauseNothingAllowed() {
+        String sql = StdJDBCDelegate.getExecutionGroupClauseSqlForAllowedGroups(Collections.<String>emptyList());
+        System.out.println(sql);
+        assertEquals("Wrong SQL", "AND 1 <> 0", sql.trim());
+    }
+
+    public void testExecutionGroupClauseAllowedNull() {
+        String sql = StdJDBCDelegate.getExecutionGroupClauseSqlForAllowedGroups(Collections.<String>singletonList(null));
+        System.out.println(sql);
+        assertEquals("Wrong SQL", "AND (EXECUTION_GROUP IS NULL )", sql.trim());
+    }
+
+    public void testExecutionGroupClauseAllowedX() {
+        String sql = StdJDBCDelegate.getExecutionGroupClauseSqlForAllowedGroups(Collections.singletonList("X"));
+        System.out.println(sql);
+        assertEquals("Wrong SQL", "AND (EXECUTION_GROUP IN (?))", sql.trim());
+    }
+
+    public void testExecutionGroupClauseAllowedNullAndX() {
+        String sql = StdJDBCDelegate.getExecutionGroupClauseSqlForAllowedGroups(Arrays.asList("X", null));
+        System.out.println(sql);
+        assertEquals("Wrong SQL", "AND (EXECUTION_GROUP IS NULL OR EXECUTION_GROUP IN (?))", sql.trim());
+    }
+
+    public void testExecutionGroupClauseNothingDisallowed() {
+        String sql = StdJDBCDelegate.getExecutionGroupClauseSqlForNotAllowedGroups(Collections.<String>emptyList());
+        System.out.println(sql);
+        assertEquals("Wrong SQL", "", sql.trim());
+    }
+
+    public void testExecutionGroupClauseDisallowedNull() {
+        String sql = StdJDBCDelegate.getExecutionGroupClauseSqlForNotAllowedGroups(Collections.<String>singletonList(null));
+        System.out.println(sql);
+        assertEquals("Wrong SQL", "AND (EXECUTION_GROUP IS NOT NULL )", sql.trim());
+    }
+
+    public void testExecutionGroupClauseNotAllowedX() {
+        String sql = StdJDBCDelegate.getExecutionGroupClauseSqlForNotAllowedGroups(Collections.singletonList("X"));
+        System.out.println(sql);
+        assertEquals("Wrong SQL", "AND (EXECUTION_GROUP IS NULL OR EXECUTION_GROUP NOT IN (?))", sql.trim());
+    }
+
+    public void testExecutionGroupClauseNotAllowedNullAndX() {
+        String sql = StdJDBCDelegate.getExecutionGroupClauseSqlForNotAllowedGroups(Arrays.asList("X", null));
+        System.out.println(sql);
+        assertEquals("Wrong SQL", "AND (EXECUTION_GROUP IS NOT NULL AND EXECUTION_GROUP NOT IN (?))", sql.trim());
+    }
+
+
 
 }

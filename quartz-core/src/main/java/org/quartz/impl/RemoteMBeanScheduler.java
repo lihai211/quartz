@@ -953,11 +953,11 @@ public abstract class RemoteMBeanScheduler implements Scheduler {
         throw new SchedulerException("Operation not supported for remote schedulers.");
     }
 
-    public Map<String, Integer> getJobGroupsExecutionLimits() throws SchedulerException {
+    public Map<String, Integer> getExecutionLimits() throws SchedulerException {
         throw new SchedulerException("Operation not supported for remote schedulers.");
     }
 
-    public void setJobGroupsExecutionLimits(Map<String, Integer> executionLimits) throws SchedulerException {
+    public void setExecutionLimits(Map<String, Integer> executionLimits) throws SchedulerException {
         throw new SchedulerException("Operation not supported for remote schedulers.");
     }
 }

@@ -48,6 +48,7 @@ import org.quartz.impl.jdbcjobstore.StdJDBCDelegate;
 import org.quartz.impl.matchers.GroupMatcher;
 import org.quartz.impl.matchers.StringMatcher;
 import org.quartz.spi.ClassLoadHelper;
+import org.quartz.spi.ExecutionLimitsAwareJobStore;
 import org.quartz.spi.JobStore;
 import org.quartz.spi.OperableTrigger;
 import org.quartz.spi.SchedulerSignaler;
@@ -55,8 +56,6 @@ import org.quartz.spi.TriggerFiredBundle;
 import org.quartz.spi.TriggerFiredResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static org.quartz.impl.matchers.EverythingMatcher.allTriggers;
 
 /**
  * <p>
@@ -75,7 +74,7 @@ import static org.quartz.impl.matchers.EverythingMatcher.allTriggers;
  * @author Sharada Jambula
  * @author Eric Mueller
  */
-public class RAMJobStore implements JobStore {
+public class RAMJobStore implements JobStore, ExecutionLimitsAwareJobStore {
 
     /*
      * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1447,7 +1446,7 @@ public class RAMJobStore implements JobStore {
         return acquireNextTriggers(noLaterThan, maxCount, null, timeWindow);
     }
 
-    public List<OperableTrigger> acquireNextTriggers(long noLaterThan, int maxCount, Map<String, Integer> jobGroupsLimits, long timeWindow) {
+    public List<OperableTrigger> acquireNextTriggers(long noLaterThan, int maxCount, Map<String, Integer> executionLimits, long timeWindow) {
         synchronized (lock) {
             List<OperableTrigger> result = new ArrayList<OperableTrigger>();
             Set<JobKey> acquiredJobKeysForNoConcurrentExec = new HashSet<JobKey>();
@@ -1458,9 +1457,9 @@ public class RAMJobStore implements JobStore {
             if (timeTriggers.size() == 0)
                 return result;
 
-            // job group limits will be modified during processing
-            Map<String, Integer> jobGroupLimitsWorkingCopy = jobGroupsLimits != null ?
-                    new HashMap<>(jobGroupsLimits) : new HashMap<String, Integer>();
+            // execution limits will be modified during processing
+            Map<String, Integer> limitsWorkingCopy = executionLimits != null ?
+                    new HashMap<>(executionLimits) : new HashMap<String, Integer>();
             
             while (true) {
                 TriggerWrapper tw;
@@ -1504,8 +1503,8 @@ public class RAMJobStore implements JobStore {
                 }
 
                 // if trigger cannot be acquired because of job group limit, do the same
-                String jobGroup = tw.getTrigger().getJobKey().getGroup();
-                if (!StdJDBCDelegate.checkJobGroupLimit(jobGroup, jobGroupLimitsWorkingCopy)) {
+                String executionGroup = tw.getTrigger().getExecutionGroup();
+                if (!StdJDBCDelegate.checkExecutionLimits(executionGroup, limitsWorkingCopy)) {
                     excludedTriggers.add(tw);
                     continue;
                 }
@@ -1768,8 +1767,9 @@ public class RAMJobStore implements JobStore {
         return false;
     }
 
-    public boolean supportsJobGroupLimits() {
-        return true;
+    @Override
+    public void setExecutionLimits(Map<String, Integer> executionLimits) {
+        // actually not needed here
     }
 }
 

@@ -32,9 +32,7 @@ import org.quartz.Calendar;
 import org.quartz.JobDetail;
 import org.quartz.impl.jdbcjobstore.StdJDBCDelegate;
 import org.quartz.impl.jdbcjobstore.TriggerPersistenceDelegate;
-import org.quartz.spi.ClassLoadHelper;
 import org.quartz.spi.OperableTrigger;
-import org.slf4j.Logger;
 
 /**
  * <p>
@@ -86,7 +84,8 @@ public class OracleDelegate extends StdJDBCDelegate {
         + COL_TRIGGER_TYPE + " = ?, " + COL_START_TIME + " = ?, "
         + COL_END_TIME + " = ?, " + COL_CALENDAR_NAME + " = ?, "
         + COL_MISFIRE_INSTRUCTION + " = ?, "
-        + COL_PRIORITY + " = ? WHERE " 
+        + COL_PRIORITY + " = ?, "
+        + COL_EXECUTION_GROUP + " = ? WHERE "
         + COL_SCHEDULER_NAME + " = " + SCHED_NAME_SUBST
         + " AND " + COL_TRIGGER_NAME + " = ? AND " + COL_TRIGGER_GROUP + " = ?";
 
@@ -316,6 +315,7 @@ public class OracleDelegate extends StdJDBCDelegate {
             ps.setInt(13, trigger.getMisfireInstruction());
             ps.setBinaryStream(14, null, 0);
             ps.setInt(15, trigger.getPriority());
+            ps.setString(16, trigger.getExecutionGroup());
 
             insertResult = ps.executeUpdate();
 
@@ -420,8 +420,9 @@ public class OracleDelegate extends StdJDBCDelegate {
             ps.setString(10, trigger.getCalendarName());
             ps.setInt(11, trigger.getMisfireInstruction());
             ps.setInt(12, trigger.getPriority());
-            ps.setString(13, trigger.getKey().getName());
-            ps.setString(14, trigger.getKey().getGroup());
+            ps.setString(13, trigger.getExecutionGroup());
+            ps.setString(14, trigger.getKey().getName());
+            ps.setString(15, trigger.getKey().getGroup());
 
             insertResult = ps.executeUpdate();
 

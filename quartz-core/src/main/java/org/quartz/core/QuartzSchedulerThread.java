@@ -22,9 +22,11 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.quartz.JobPersistenceException;
+import org.quartz.Scheduler;
 import org.quartz.SchedulerException;
 import org.quartz.Trigger;
 import org.quartz.Trigger.CompletedExecutionInstruction;
+import org.quartz.spi.ExecutionLimitsAwareJobStore;
 import org.quartz.spi.JobStore;
 import org.quartz.spi.OperableTrigger;
 import org.quartz.spi.TriggerFiredBundle;
@@ -282,11 +284,11 @@ public class QuartzSchedulerThread extends Thread {
 
                     clearSignaledSchedulingChange();
                     try {
-                        Map<String, Integer> jobGroupsLimits =
-                                qsRsrcs.getJobStore().supportsJobGroupLimits() ? computeJobGroupsLimits() : null;
+                        Map<String, Integer> executionLimits =
+                                qsRsrcs.getJobStore() instanceof ExecutionLimitsAwareJobStore ? computeAvailableExecutionGroupsLimits() : null;
                         triggers = qsRsrcs.getJobStore().acquireNextTriggers(
                                 now + idleWaitTime, Math.min(availThreadCount, qsRsrcs.getMaxBatchSize()),
-                                jobGroupsLimits, qsRsrcs.getBatchTimeWindow());
+                                executionLimits, qsRsrcs.getBatchTimeWindow());
                         acquiresFailed = 0;
                         if (log.isDebugEnabled())
                             log.debug("batch acquisition of " + (triggers == null ? 0 : triggers.size()) + " triggers");
@@ -443,23 +445,36 @@ public class QuartzSchedulerThread extends Thread {
     }
 
     /**
-     * Takes prescribed limits for job groups (if any), and lowers them according to jobs currently executing on this node.
+     * Takes prescribed limits for execution groups (if any), and lowers them according to jobs currently executing on this node.
      */
-    private Map<String, Integer> computeJobGroupsLimits() {
-        Map<String, Integer> executingJobsPerGroup = qsRsrcs.getThreadPool().getExecutingJobGroupsCounts();
-        Map<String, Integer> limits = qs.getJobGroupsExecutionLimits();
+    private Map<String, Integer> computeAvailableExecutionGroupsLimits() {
+        Map<String, Integer> runningJobsPerExecutionGroup = qsRsrcs.getThreadPool().getRunningJobsPerExecutionGroup();
+        Map<String, Integer> limits = qs.getExecutionLimits();
         if (limits == null) {
             return null;            // no limits => nothing to do
         }
-        Map<String, Integer> rv = new HashMap<>(limits);
-        for (Map.Entry<String, Integer> entry : rv.entrySet()) {
-            String jobGroup = entry.getKey();
-            Integer executing = executingJobsPerGroup.get(jobGroup);
-            if (executing != null && executing > 0 && entry.getValue() != null) {
-                entry.setValue(entry.getValue() - executing);
+        Integer defaultLimit = limits.get(Scheduler.LIMIT_FOR_OTHER_GROUPS);
+        Map<String, Integer> availableLimits = new HashMap<>(limits);
+        for (Map.Entry<String, Integer> running : runningJobsPerExecutionGroup.entrySet()) {
+            String runningGroup = running.getKey();     // nullable
+            int runningCount = running.getValue();
+            if (!availableLimits.containsKey(runningGroup)) {
+                if (defaultLimit != null) {
+                    availableLimits.put(runningGroup, Math.max(defaultLimit-runningCount, 0));
+                }
+            } else {
+                Integer limit = availableLimits.get(runningGroup);
+                if (limit != null) {
+                    availableLimits.put(runningGroup, Math.max(limit-runningCount, 0));
+                } else {
+                    // null means "no limit", so nothing to update here
+                }
             }
         }
-        return rv;
+        if (defaultLimit != null) {
+            availableLimits.put(Scheduler.LIMIT_FOR_OTHER_GROUPS, defaultLimit);
+        }
+        return availableLimits;
     }
 
     private static final long MIN_DELAY = 20;

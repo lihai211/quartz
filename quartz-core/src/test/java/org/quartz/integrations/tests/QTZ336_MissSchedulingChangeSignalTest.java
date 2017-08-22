@@ -149,9 +149,9 @@ public class QTZ336_MissSchedulingChangeSignalTest {
         }
 
         @Override
-        public List<OperableTrigger> acquireNextTriggers(long noLaterThan, int maxCount, Map<String, Integer> jobGroupsLimits,
+        public List<OperableTrigger> acquireNextTriggers(long noLaterThan, int maxCount, Map<String, Integer> executionLimits,
                 long timeWindow) {
-            List<OperableTrigger> nextTriggers = super.acquireNextTriggers(noLaterThan, maxCount, jobGroupsLimits, timeWindow);
+            List<OperableTrigger> nextTriggers = super.acquireNextTriggers(noLaterThan, maxCount, executionLimits, timeWindow);
             waitABit();
             return nextTriggers;
         }

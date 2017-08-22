@@ -171,7 +171,7 @@ public interface RemotableQuartzScheduler extends Remote {
 
     public boolean unscheduleJobs(List<TriggerKey> triggerKeys) throws SchedulerException,RemoteException;
     
-    Map<String, Integer> getJobGroupsExecutionLimits();
+    Map<String, Integer> getExecutionLimits();
 
-    void setJobGroupsExecutionLimits(Map<String, Integer> executionLimits);
+    void setExecutionLimits(Map<String, Integer> executionLimits);
 }

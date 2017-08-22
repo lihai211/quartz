@@ -371,9 +371,8 @@ public class JobRunShell extends SchedulerListenerSupport implements Runnable {
         return true;
     }
 
-    public String getJobGroup() {
-        // Can be any of these null? Supposedly not.
-        return jec.getJobDetail().getKey().getGroup();
+    public String getExecutionGroup() {
+        return firedTriggerBundle.getTrigger().getExecutionGroup();
     }
 
     static class VetoedException extends Exception {

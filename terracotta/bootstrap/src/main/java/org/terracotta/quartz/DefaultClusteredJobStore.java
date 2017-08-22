@@ -1497,14 +1497,9 @@ class DefaultClusteredJobStore implements ClusteredJobStore {
   }
 
   @Override
-  public List<OperableTrigger> acquireNextTriggers(long noLaterThan, int maxCount, Map<String, Integer> jobGroupsLimits,
+  public List<OperableTrigger> acquireNextTriggers(long noLaterThan, int maxCount, Map<String, Integer> executionLimits,
           long timeWindow) throws JobPersistenceException {
     return acquireNextTriggers(noLaterThan, maxCount, timeWindow);
-  }
-
-  @Override
-  public boolean supportsJobGroupLimits() {
-    return false;
   }
 
   private boolean validateAcquired(List<OperableTrigger> result) {

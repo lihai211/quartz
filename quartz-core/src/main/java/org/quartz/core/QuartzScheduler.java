@@ -60,6 +60,7 @@ import org.quartz.impl.SchedulerRepository;
 import org.quartz.impl.matchers.GroupMatcher;
 import org.quartz.listeners.SchedulerListenerSupport;
 import org.quartz.simpl.PropertySettingJobFactory;
+import org.quartz.spi.ExecutionLimitsAwareJobStore;
 import org.quartz.spi.JobFactory;
 import org.quartz.spi.OperableTrigger;
 import org.quartz.spi.SchedulerPlugin;
@@ -139,7 +140,7 @@ public class QuartzScheduler implements RemotableQuartzScheduler {
     private QuartzSchedulerResources resources;
 
     // TODO move to appropriate place
-    private Map<String, Integer> jobGroupsExecutionLimits;
+    private Map<String, Integer> executionLimits;
 
     private QuartzSchedulerThread schedThread;
 
@@ -2378,19 +2379,22 @@ J     *
         }
     }
 
-    public Map<String, Integer> getJobGroupsExecutionLimits() {
-        return jobGroupsExecutionLimits != null ? Collections.unmodifiableMap(jobGroupsExecutionLimits) : null;
+    public Map<String, Integer> getExecutionLimits() {
+        return executionLimits != null ? Collections.unmodifiableMap(executionLimits) : null;
     }
 
-    public void setJobGroupsExecutionLimits(Map<String, Integer> map) {
-        this.jobGroupsExecutionLimits = map != null ? new HashMap<>(map) : null;
+    public void setExecutionLimits(Map<String, Integer> map) {
+        this.executionLimits = map != null ? new HashMap<>(map) : null;
+        if (resources.getJobStore() instanceof ExecutionLimitsAwareJobStore) {
+            ((ExecutionLimitsAwareJobStore) resources.getJobStore()).setExecutionLimits(this.executionLimits);
+        }
     }
 
-    public void setJobGroupExecutionLimit(String jobGroup, Integer limit) {
-        Map<String, Integer> newMap = jobGroupsExecutionLimits != null ?
-                new HashMap<>(jobGroupsExecutionLimits) : new HashMap<String, Integer>();
+    public void setExecutionLimit(String jobGroup, Integer limit) {
+        Map<String, Integer> newMap = executionLimits != null ?
+                new HashMap<>(executionLimits) : new HashMap<String, Integer>();
         newMap.put(jobGroup, limit);
-        setJobGroupsExecutionLimits(newMap);
+        setExecutionLimits(newMap);
     }
 }
 

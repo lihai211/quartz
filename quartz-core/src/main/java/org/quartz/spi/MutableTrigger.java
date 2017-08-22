@@ -125,4 +125,8 @@ public interface MutableTrigger extends Trigger {
 
     public Object clone();
 
+    /**
+     * Execution group for this trigger.
+     */
+    void setExecutionGroup(String executionGroup);
 }

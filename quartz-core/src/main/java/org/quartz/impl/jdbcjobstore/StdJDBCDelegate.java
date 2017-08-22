@@ -35,6 +35,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.text.MessageFormat;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -338,25 +341,35 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
      * 
      * @param conn The DB Connection
      * @param count The most misfired triggers to return, negative for all
-     * @param resultList Output parameter.  A List of 
+     * @param resultList Output parameter.  A List of
      *      <code>{@link org.quartz.utils.Key}</code> objects.  Must not be null.
-     *          
+     *
+     * @param executionLimits used to filter triggers based on allowed execution groups
+     *                        (This is only an approximation, because we skip the trigger
+     *                        only if limits strictly forbid its execution group. If limits
+     *                        allow N>0 threads for a given group, and there are M>N triggers,
+     *                        all of them are fetched. This is sorted out during actual trigger
+     *                        acquisition.)
      * @return Whether there are more misfired triggers left to find beyond
      *         the given count.
      */
-    public boolean hasMisfiredTriggersInState(Connection conn, String state1, 
-        long ts, int count, List<TriggerKey> resultList) throws SQLException {
+    public boolean hasMisfiredTriggersInState(Connection conn, String state1,
+            long ts, int count, List<TriggerKey> resultList,
+            Map<String, Integer> executionLimits) throws SQLException {
         PreparedStatement ps = null;
         ResultSet rs = null;
 
         try {
-            ps = conn.prepareStatement(rtp(SELECT_HAS_MISFIRED_TRIGGERS_IN_STATE));
+            ExecutionGroupClauseInfo executionGroupClauseInfo = prepareExecutionGroupClauseInfo(executionLimits);
+            ps = conn.prepareStatement(rtp2(SELECT_HAS_MISFIRED_TRIGGERS_IN_STATE, getExecutionGroupClauseSql(
+                    executionGroupClauseInfo)));
             ps.setBigDecimal(1, new BigDecimal(String.valueOf(ts)));
             ps.setString(2, state1);
+            setExecutionGroupClauseParameters(ps, 3, executionGroupClauseInfo);
             rs = ps.executeQuery();
 
             boolean hasReachedLimit = false;
-            while (rs.next() && (hasReachedLimit == false)) {
+            while (rs.next() && !hasReachedLimit) {
                 if (resultList.size() == count) {
                     hasReachedLimit = true;
                 } else {
@@ -378,18 +391,25 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
      * Get the number of triggers in the given states that have
      * misfired - according to the given timestamp.
      * </p>
-     * 
      * @param conn the DB Connection
+     * @param executionLimits Execution limits for this node. Used to skip irrelevant triggers.
+     *                        (This is only an approximation, because we skip the trigger
+     *                        only if limits strictly forbid its execution group. If limits
+     *                        allow N>0 threads for a given group, and there are M>N triggers,
+     *                        all of them are counted. This is sorted out during actual trigger
+     *                        acquisition.)
      */
     public int countMisfiredTriggersInState(
-            Connection conn, String state1, long ts) throws SQLException {
+            Connection conn, String state1, long ts, Map<String, Integer> executionLimits) throws SQLException {
         PreparedStatement ps = null;
         ResultSet rs = null;
 
         try {
-            ps = conn.prepareStatement(rtp(COUNT_MISFIRED_TRIGGERS_IN_STATE));
+            ExecutionGroupClauseInfo executionGroupClauseInfo = prepareExecutionGroupClauseInfo(executionLimits);
+            ps = conn.prepareStatement(rtp2(COUNT_MISFIRED_TRIGGERS_IN_STATE, getExecutionGroupClauseSql(executionGroupClauseInfo)));
             ps.setBigDecimal(1, new BigDecimal(String.valueOf(ts)));
             ps.setString(2, state1);
+            setExecutionGroupClauseParameters(ps, 3, executionGroupClauseInfo);
             rs = ps.executeQuery();
 
             if (rs.next()) {
@@ -482,6 +502,7 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
                 long firedTime = rs.getLong(COL_FIRED_TIME);
                 long scheduledTime = rs.getLong(COL_SCHED_TIME);
                 int priority = rs.getInt(COL_PRIORITY);
+                String executionGroup = rs.getString(COL_EXECUTION_GROUP);
                 @SuppressWarnings("deprecation")
                 SimpleTriggerImpl rcvryTrig = new SimpleTriggerImpl("recover_"
                         + instanceId + "_" + String.valueOf(dumId++),
@@ -489,6 +510,7 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
                 rcvryTrig.setJobName(jobName);
                 rcvryTrig.setJobGroup(jobGroup);
                 rcvryTrig.setPriority(priority);
+                rcvryTrig.setExecutionGroup(executionGroup);
                 rcvryTrig.setMisfireInstruction(SimpleTrigger.MISFIRE_INSTRUCTION_IGNORE_MISFIRE_POLICY);
 
                 JobDataMap jd = selectTriggerJobDataMap(conn, trigName, trigGroup);
@@ -1089,7 +1111,8 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
             ps.setInt(13, trigger.getMisfireInstruction());
             setBytes(ps, 14, baos);
             ps.setInt(15, trigger.getPriority());
-            
+            ps.setString(16, trigger.getExecutionGroup());
+
             insertResult = ps.executeUpdate();
             
             if(tDel == null)
@@ -1209,14 +1232,15 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
             ps.setString(10, trigger.getCalendarName());
             ps.setInt(11, trigger.getMisfireInstruction());
             ps.setInt(12, trigger.getPriority());
+            ps.setString(13, trigger.getExecutionGroup());
 
             if(updateJobData) {
-                setBytes(ps, 13, baos);
+                setBytes(ps, 14, baos);
+                ps.setString(15, trigger.getKey().getName());
+                ps.setString(16, trigger.getKey().getGroup());
+            } else {
                 ps.setString(14, trigger.getKey().getName());
                 ps.setString(15, trigger.getKey().getGroup());
-            } else {
-                ps.setString(13, trigger.getKey().getName());
-                ps.setString(14, trigger.getKey().getGroup());
             }
 
             insertResult = ps.executeUpdate();
@@ -1772,6 +1796,7 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
                 String calendarName = rs.getString(COL_CALENDAR_NAME);
                 int misFireInstr = rs.getInt(COL_MISFIRE_INSTRUCTION);
                 int priority = rs.getInt(COL_PRIORITY);
+                String executionGroup = rs.getString(COL_EXECUTION_GROUP);
 
                 Map<?, ?> map = null;
                 if (canUseProperties()) {
@@ -1834,7 +1859,8 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
                         .withIdentity(triggerKey)
                         .modifiedByCalendar(calendarName)
                         .withSchedule(triggerProps.getScheduleBuilder())
-                        .forJob(jobKey(jobName, jobGroup));
+                        .forJob(jobKey(jobName, jobGroup))
+                        .executionGroup(executionGroup);
     
                     if (null != map) {
                         tb.usingJobData(new JobDataMap(map));
@@ -2565,12 +2591,12 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
      *          
      * @return A (never null, possibly empty) list of the identifiers (Key objects) of the next triggers to be fired.
      * 
-     * @deprecated - This remained for compatibility reason. Use {@link DriverDelegate#selectTriggerToAcquire(Connection, long, long, int, Map)} instead.
+     * @deprecated - This remained for compatibility reason. Use {@link DriverDelegate#selectTriggerToAcquire(Connection, long, long, int, Integer, Map)} instead.
      */
     public List<TriggerKey> selectTriggerToAcquire(Connection conn, long noLaterThan, long noEarlierThan)
             throws SQLException {
         // This old API used to always return 1 trigger.
-        return selectTriggerToAcquire(conn, noLaterThan, noEarlierThan, 1, null);
+        return selectTriggerToAcquire(conn, noLaterThan, noEarlierThan, 1, null, null);
     }
 
     /**
@@ -2583,44 +2609,53 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
      *          the DB Connection
      * @param noLaterThan
      *          highest value of <code>getNextFireTime()</code> of the triggers (exclusive) TODO doesn't match the SQL code
-     * @param noEarlierThan 
+     * @param noEarlierThan
      *          lowest value of <code>getNextFireTime()</code> of the triggers (inclusive)
-     * @param maxCount 
+     * @param maxCount
      *          maximum number of trigger keys allow to acquired in the returning list.
-     * @param jobGroupsLimits
-     *          how many of triggers in job group we may fetch - checked in addition to maxCount
+     * @param maxFetchCount
+     *          how many triggers to fetch from DB at most. It might be greater than maxCount, because not all triggers fetched
+     *          from DB are really returned: they are subject to executionLimits, if they are specified. However, this method guarantees
+     *          that at least one trigger fetched from DB will be really returned to the caller . Because of this, using maxFetchCount
+     *          is not strictly necessary. It can be seen more as an optimization feature. If null or less than maxCount, maxCount is used for
+     *          this purpose.
+     * @param executionLimits
+     *          how many triggers in each execution group we may return - this is checked in addition to maxCount
      * @return A (never null, possibly empty) list of the identifiers (Key objects) of the next triggers to be fired.
      */
     public List<TriggerKey> selectTriggerToAcquire(Connection conn, long noLaterThan, long noEarlierThan, int maxCount,
-            Map<String, Integer> jobGroupsLimits)
+            Integer maxFetchCount, Map<String, Integer> executionLimits)
         throws SQLException {
         PreparedStatement ps = null;
         ResultSet rs = null;
         List<TriggerKey> nextTriggers = new LinkedList<TriggerKey>();
-        // job group limits will be modified during processing
-        Map<String, Integer> jobGroupLimitsWorkingCopy = jobGroupsLimits != null ?
-            new HashMap<>(jobGroupsLimits) : new HashMap<String, Integer>();
+        // execution limits will be modified during processing so let's create a working copy
+        Map<String, Integer> limitsWorkingCopy = executionLimits != null ?
+            new HashMap<>(executionLimits) : new HashMap<String, Integer>();
 
         try {
-            ps = conn.prepareStatement(rtp(SELECT_NEXT_TRIGGER_TO_ACQUIRE));
-            
+            ExecutionGroupClauseInfo executionGroupClauseInfo = prepareExecutionGroupClauseInfo(executionLimits);
+            ps = conn.prepareStatement(rtp2(SELECT_NEXT_TRIGGER_TO_ACQUIRE, getExecutionGroupClauseSql(executionGroupClauseInfo)));
+
             // Set max rows to retrieve
             if (maxCount < 1)
                 maxCount = 1; // we want at least one trigger back.
-            ps.setMaxRows(maxCount);
+            int fetchSize = maxFetchCount != null && maxFetchCount > maxCount ? maxFetchCount : maxCount;
+            ps.setMaxRows(fetchSize);
             
             // Try to give jdbc driver a hint to hopefully not pull over more than the few rows we actually need.
             // Note: in some jdbc drivers, such as MySQL, you must set maxRows before fetchSize, or you get exception!
-            ps.setFetchSize(maxCount);
+            ps.setFetchSize(fetchSize);
             
             ps.setString(1, STATE_WAITING);
             ps.setBigDecimal(2, new BigDecimal(String.valueOf(noLaterThan)));
             ps.setBigDecimal(3, new BigDecimal(String.valueOf(noEarlierThan)));
+            setExecutionGroupClauseParameters(ps, 4, executionGroupClauseInfo);
             rs = ps.executeQuery();
             
             while (rs.next() && nextTriggers.size() <= maxCount) {
-                String jobGroup = rs.getString(COL_JOB_GROUP);
-                if (checkJobGroupLimit(jobGroup, jobGroupLimitsWorkingCopy)) {
+                String executionGroup = rs.getString(COL_EXECUTION_GROUP);
+                if (checkExecutionLimits(executionGroup, limitsWorkingCopy)) {
                     nextTriggers.add(triggerKey(
                             rs.getString(COL_TRIGGER_NAME),
                             rs.getString(COL_TRIGGER_GROUP)));
@@ -2635,22 +2670,144 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
     }
 
     // TODO move to some 'util' class, as it is used also from elsewhere
-    public static boolean checkJobGroupLimit(String jobGroup, Map<String, Integer> limits) {
-        if (jobGroup == null) {
-            throw new IllegalStateException("Job group cannot be null");        // ensured by the database
-        }
-        boolean isPresent = limits.containsKey(jobGroup);
-        Integer limit = isPresent ? limits.get(jobGroup) : limits.get(null);
+    public static boolean checkExecutionLimits(String executionGroup, Map<String, Integer> limits) {
+        Integer limit = limits.containsKey(executionGroup) ? limits.get(executionGroup) : limits.get(Scheduler.LIMIT_FOR_OTHER_GROUPS);
         if (limit == null) {
-            return true;
+            return true;            // null means no limits
         } else if (limit == 0) {
             return false;
         } else {
-            if (isPresent) {
-                limits.put(jobGroup, limit-1);
-            }
+            // even if group was not originally listed so the default was applied, we enforce this limit for specific group
+            limits.put(executionGroup, limit - 1);
             return true;
         }
+    }
+
+    private int setExecutionGroupClauseParameters(PreparedStatement ps, int startIndex, ExecutionGroupClauseInfo limits)
+            throws SQLException {
+        int i = startIndex;
+        for (String group : limits.groups) {
+            if (group != null) {
+                ps.setString(i++, group);
+            }
+        }
+        return i;
+    }
+
+    // TODO consider making executionGroup obligatory so no null-related processing is needed
+    // (at the cost of making DB migration on upgrade harder)
+    private static String getExecutionGroupClauseSql(ExecutionGroupClauseInfo limits) {
+        if (limits.listedGroupsAreAllowed) {
+            return getExecutionGroupClauseSqlForAllowedGroups(limits.groups);
+        } else {
+            return getExecutionGroupClauseSqlForNotAllowedGroups(limits.groups);
+        }
+    }
+
+    static String getExecutionGroupClauseSqlForNotAllowedGroups(List<String> groups) {  // visibility because of testing
+        if (groups.isEmpty()) {
+            return "";          // no groups to disallow - no clause
+        }
+        boolean nullGroupIsAllowed = !groups.contains(null);
+        List<String> nonNullGroups = new ArrayList<>(groups);
+        nonNullGroups.remove(null);
+        StringBuilder sb = new StringBuilder();
+
+        sb.append(" AND (");
+        if (nullGroupIsAllowed) {
+            sb.append(COL_EXECUTION_GROUP).append(" IS NULL ");
+            if (!nonNullGroups.isEmpty()) {
+                sb.append("OR ");
+            }
+        } else {
+            // this is probably not needed, because 'x NOT IN (A1, A2, A3)' would return false if x == null and Ai != null but let's play it safe
+            sb.append(COL_EXECUTION_GROUP).append(" IS NOT NULL ");
+            if (!nonNullGroups.isEmpty()) {
+                sb.append("AND ");
+            }
+        }
+        if (!nonNullGroups.isEmpty()) {
+            sb.append(COL_EXECUTION_GROUP);
+            sb.append(" NOT IN (");
+            for (int i = 0; i < nonNullGroups.size(); i++) {
+                if (i > 0) {
+                    sb.append(",");
+                }
+                sb.append("?");
+            }
+            sb.append(")");
+        }
+        sb.append(")");
+        return sb.toString();
+    }
+
+    static String getExecutionGroupClauseSqlForAllowedGroups(List<String> groups) { // visibility because of testing
+        if (groups.isEmpty()) {
+            return " AND 1 <> 0";           // really weird situation
+        }
+
+        boolean nullGroupIsAllowed = groups.contains(null);
+        List<String> nonNullGroups = new ArrayList<>(groups);
+        nonNullGroups.remove(null);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(" AND (");
+        if (nullGroupIsAllowed) {
+            sb.append(COL_EXECUTION_GROUP).append(" IS NULL ");
+            if (!nonNullGroups.isEmpty()) {
+                sb.append("OR ");
+            }
+        }
+        if (!nonNullGroups.isEmpty()) {
+            sb.append(COL_EXECUTION_GROUP);
+            sb.append(" IN (");
+            for (int i = 0; i < nonNullGroups.size(); i++) {
+                if (i > 0) {
+                    sb.append(",");
+                }
+                sb.append("?");
+            }
+            sb.append(")");
+        }
+        sb.append(")");
+        return sb.toString();
+    }
+
+    private class ExecutionGroupClauseInfo {
+        List<String> groups;
+        boolean listedGroupsAreAllowed;       // true = listed groups are to be included; false = listed groups are to be excluded
+        ExecutionGroupClauseInfo(List<String> groups, boolean listedGroupsAreAllowed) {
+            this.groups = groups;
+            this.listedGroupsAreAllowed = listedGroupsAreAllowed;
+        }
+    }
+
+    private ExecutionGroupClauseInfo prepareExecutionGroupClauseInfo(Map<String, Integer> limits) {
+        if (limits == null) {
+            return new ExecutionGroupClauseInfo(Collections.<String>emptyList(), false);
+        }
+        Integer defaultLimit = limits.get(Scheduler.LIMIT_FOR_OTHER_GROUPS);
+        if (defaultLimit != null && defaultLimit == 0) {
+            List<String> allowedGroups = new ArrayList<>();
+            for (Map.Entry<String, Integer> e : limits.entrySet()) {
+                if (!Scheduler.LIMIT_FOR_OTHER_GROUPS.equals(e.getKey()) && isAllowed(e)) {
+                    allowedGroups.add(e.getKey());
+                }
+            }
+            return new ExecutionGroupClauseInfo(allowedGroups, true);
+        } else {
+            List<String> disallowedGroups = new ArrayList<>();
+            for (Map.Entry<String, Integer> e : limits.entrySet()) {
+                if (!Scheduler.LIMIT_FOR_OTHER_GROUPS.equals(e.getKey()) && !isAllowed(e)) {
+                    disallowedGroups.add(e.getKey());
+                }
+            }
+            return new ExecutionGroupClauseInfo(disallowedGroups, false);
+        }
+    }
+
+    private boolean isAllowed(Map.Entry<String, Integer> e) {
+        return e.getValue() == null || e.getValue() > 0;
     }
 
     /**
@@ -2690,6 +2847,7 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
                 setBoolean(ps, 11, false);
             }
             ps.setInt(12, trigger.getPriority());
+            ps.setString(13, trigger.getExecutionGroup());
 
             return ps.executeUpdate();
         } finally {
@@ -2785,6 +2943,7 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
                     rec.setJobKey(jobKey(rs.getString(COL_JOB_NAME), rs
                             .getString(COL_JOB_GROUP)));
                 }
+                rec.setExecutionGroup(rs.getString(COL_EXECUTION_GROUP));
                 lst.add(rec);
             }
 
@@ -2838,6 +2997,7 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
                     rec.setJobKey(jobKey(rs.getString(COL_JOB_NAME), rs
                             .getString(COL_JOB_GROUP)));
                 }
+                rec.setExecutionGroup(rs.getString(COL_EXECUTION_GROUP));
                 lst.add(rec);
             }
 
@@ -2878,6 +3038,7 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
                             .getString(COL_JOB_GROUP)));
                 }
                 rec.setPriority(rs.getInt(COL_PRIORITY));
+                rec.setExecutionGroup(rs.getString(COL_EXECUTION_GROUP));
                 lst.add(rec);
             }
 
@@ -3055,6 +3216,16 @@ public class StdJDBCDelegate implements DriverDelegate, StdJDBCConstants {
      */
     protected final String rtp(String query) {
         return Util.rtp(query, tablePrefix, getSchedulerNameLiteral());
+    }
+
+    /**
+     * Replace the table prefix ({0}), scheduler name ({1}), and additional third parameter ({2}) in query.
+     * @param query the unsubstitued query
+     * @param third value of the third parameter
+     * @return
+     */
+    protected final String rtp2(String query, String third) {
+        return MessageFormat.format(query, tablePrefix, getSchedulerNameLiteral(), third);
     }
 
     private String schedNameLiteral = null;
