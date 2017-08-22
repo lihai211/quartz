@@ -20,7 +20,6 @@ package org.quartz.impl.jdbcjobstore;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
@@ -135,29 +134,25 @@ public interface DriverDelegate {
      * 
      * @param conn the DB Connection
      * @param count the most misfired triggers to return, negative for all
-     * @param resultList Output parameter.  A List of
-     *      <code>{@link Key}</code> objects.  Must not be null.
-     * @param executionCapabilities Capabilities of current node. Will skip triggers that require capabilities
-     *                              other than present here.
+     * @param resultList Output parameter.  A List of 
+     *      <code>{@link org.quartz.utils.Key}</code> objects.  Must not be null.
+     *          
      * @return Whether there are more misfired triggers left to find beyond
      *         the given count.
      */
-    boolean hasMisfiredTriggersInState(Connection conn, String state1,
-            long ts, int count, List<TriggerKey> resultList,
-            Collection<String> executionCapabilities) throws SQLException;
+    boolean hasMisfiredTriggersInState(Connection conn, String state1, 
+        long ts, int count, List<TriggerKey> resultList) throws SQLException;
     
     /**
      * <p>
      * Get the number of triggers in the given state that have
      * misfired - according to the given timestamp.
      * </p>
-     *
+     * 
      * @param conn the DB Connection
-     * @param executionCapabilities Capabilities of current node. Will skip triggers that require capabilities
-     *                              other than present here.
      */
     int countMisfiredTriggersInState(
-            Connection conn, String state1, long ts, Collection<String> executionCapabilities) throws SQLException;
+        Connection conn, String state1, long ts) throws SQLException;
 
     /**
      * <p>
@@ -940,13 +935,13 @@ public interface DriverDelegate {
      * @param conn
      *          the DB Connection
      * @param noLaterThan
-     *          highest value of <code>getNextFireTime()</code> of the triggers (exclusive) TODO doesn't match the SQL code
+     *          highest value of <code>getNextFireTime()</code> of the triggers (exclusive)
      * @param noEarlierThan 
-     *          lowest value of <code>getNextFireTime()</code> of the triggers (inclusive)
+     *          highest value of <code>getNextFireTime()</code> of the triggers (inclusive)
      *          
      * @return A (never null, possibly empty) list of the identifiers (Key objects) of the next triggers to be fired.
      * 
-     * @deprecated - This remained for compatibility reason. Use {@link #selectTriggerToAcquire(Connection, long, long, int, Collection)} instead.
+     * @deprecated - This remained for compatibility reason. Use {@link #selectTriggerToAcquire(Connection, long, long, int)} instead. 
      */
     public List<TriggerKey> selectTriggerToAcquire(Connection conn, long noLaterThan, long noEarlierThan)
         throws SQLException;
@@ -960,18 +955,15 @@ public interface DriverDelegate {
      * @param conn
      *          the DB Connection
      * @param noLaterThan
-     *          highest value of <code>getNextFireTime()</code> of the triggers (exclusive) TODO doesn't match the SQL code
-     * @param noEarlierThan
-     *          lowest value of <code>getNextFireTime()</code> of the triggers (inclusive)
-     * @param maxCount
+     *          highest value of <code>getNextFireTime()</code> of the triggers (exclusive)
+     * @param noEarlierThan 
+     *          highest value of <code>getNextFireTime()</code> of the triggers (inclusive)
+     * @param maxCount 
      *          maximum number of trigger keys allow to acquired in the returning list.
-     * @param executionCapabilities
-     *          capabilities of the current node: we select only triggers that have requiredCapability either null or
-     *          matching some of the executionCapabilities
+     *          
      * @return A (never null, possibly empty) list of the identifiers (Key objects) of the next triggers to be fired.
      */
-    public List<TriggerKey> selectTriggerToAcquire(Connection conn, long noLaterThan, long noEarlierThan, int maxCount,
-            Collection<String> executionCapabilities)
+    public List<TriggerKey> selectTriggerToAcquire(Connection conn, long noLaterThan, long noEarlierThan, int maxCount)
         throws SQLException;
 
     /**

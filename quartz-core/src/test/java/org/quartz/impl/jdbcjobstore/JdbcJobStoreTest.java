@@ -15,16 +15,16 @@
  */
 package org.quartz.impl.jdbcjobstore;
 
-import org.quartz.AbstractJobStoreTest;
-import org.quartz.spi.JobStore;
-
 import java.sql.SQLException;
 import java.util.HashMap;
 
+import org.quartz.AbstractJobStoreTest;
+import org.quartz.spi.JobStore;
+
 public class JdbcJobStoreTest extends AbstractJobStoreTest {
 
-    private HashMap<String, JobStoreSupport> stores = new HashMap<String, JobStoreSupport>();
-
+	private HashMap<String, JobStoreSupport> stores = new HashMap<String, JobStoreSupport>();
+	
     public void testNothing() {
         // nothing
     }

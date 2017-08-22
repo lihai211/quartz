@@ -103,8 +103,6 @@ public interface Constants {
 
     String COL_MISFIRE_INSTRUCTION = "MISFIRE_INSTR";
 
-    String COL_REQUIRED_CAP = "REQUIRED_CAP";
-
     String ALIAS_COL_NEXT_FIRE_TIME = "ALIAS_NXT_FR_TM";
 
     // TABLE_SIMPLE_TRIGGERS columns names

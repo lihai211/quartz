@@ -57,8 +57,6 @@ import org.quartz.spi.TriggerFiredResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.quartz.impl.jdbcjobstore.JobStoreSupport.capabilitiesCollectionToString;
-import static org.quartz.impl.jdbcjobstore.JobStoreSupport.capabilitiesStringToCollection;
 import static org.quartz.impl.matchers.EverythingMatcher.allTriggers;
 
 /**
@@ -113,10 +111,6 @@ public class RAMJobStore implements JobStore {
     protected long misfireThreshold = 5000l;
 
     protected SchedulerSignaler signaler;
-
-    private Set<String> executionCapabilitiesCollection = new HashSet<>();
-
-    protected String executionCapabilities;             // comma-separated values (in order to be settable by properties)
 
     private final Logger log = LoggerFactory.getLogger(getClass());
 
@@ -1502,13 +1496,6 @@ public class RAMJobStore implements JobStore {
                     }
                 }
 
-                // if the required execution capability is not present, do the same
-                String requiredCap = tw.getTrigger().getRequiredCapability();
-                if (requiredCap != null && !executionCapabilitiesCollection.contains(requiredCap)) {
-                    excludedTriggers.add(tw);
-                    continue;
-                }
-
                 tw.state = TriggerWrapper.STATE_ACQUIRED;
                 tw.trigger.setFireInstanceId(getFiredTriggerRecordId());
                 OperableTrigger trig = (OperableTrigger) tw.trigger.clone();
@@ -1767,29 +1754,6 @@ public class RAMJobStore implements JobStore {
         return false;
     }
 
-    public Collection<String> getExecutionCapabilitiesCollection() {
-        return Collections.unmodifiableSet(executionCapabilitiesCollection);
-    }
-
-    public String getExecutionCapabilities() {
-        return executionCapabilities;
-    }
-
-    // invoked by reflection
-    // stringValue contains capabilities separated by comma
-    public void setExecutionCapabilities(String stringValue) {
-        executionCapabilitiesCollection = capabilitiesStringToCollection(stringValue);
-        executionCapabilities = stringValue;
-    }
-
-    public void setExecutionCapabilitiesCollection(Collection<String> collection) {
-        executionCapabilities = capabilitiesCollectionToString(collection);
-        executionCapabilitiesCollection = new HashSet<>(collection);
-    }
-
-    public boolean supportsExecutionCapabilities() {
-        return true;
-    }
 }
 
 /*******************************************************************************

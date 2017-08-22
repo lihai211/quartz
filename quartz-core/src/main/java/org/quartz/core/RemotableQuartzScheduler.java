@@ -20,7 +20,10 @@ package org.quartz.core;
 
 import java.rmi.Remote;
 import java.rmi.RemoteException;
-import java.util.*;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.quartz.Calendar;
 import org.quartz.JobDataMap;
@@ -170,8 +173,5 @@ public interface RemotableQuartzScheduler extends Remote {
     public void scheduleJob(JobDetail jobDetail, Set<? extends Trigger> triggersForJob, boolean replace) throws SchedulerException,RemoteException;
 
     public boolean unscheduleJobs(List<TriggerKey> triggerKeys) throws SchedulerException,RemoteException;
-
-    Collection<String> getExecutionCapabilities();
-
-    void setExecutionCapabilities(Collection<String> executionCapabilities);
+    
 }

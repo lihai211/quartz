@@ -30,7 +30,9 @@ import java.sql.SQLException;
 
 import org.quartz.Calendar;
 import org.quartz.JobDetail;
+import org.quartz.spi.ClassLoadHelper;
 import org.quartz.spi.OperableTrigger;
+import org.slf4j.Logger;
 
 /**
  * <p>
@@ -181,7 +183,6 @@ public class PointbaseDelegate extends StdJDBCDelegate {
             ps.setInt(13, trigger.getMisfireInstruction());
             ps.setBinaryStream(14, bais, len);
             ps.setInt(15, trigger.getPriority());
-            ps.setString(16, trigger.getRequiredCapability());
             
             insertResult = ps.executeUpdate();
             

@@ -17,7 +17,10 @@
 
 package org.quartz.impl;
 
-import java.util.*;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.quartz.Calendar;
 import org.quartz.JobDataMap;
@@ -620,12 +623,5 @@ public class StdScheduler implements Scheduler {
         return sched.interrupt(fireInstanceId);
     }
 
-    public Collection<String> getExecutionCapabilities() {
-        return sched.getExecutionCapabilities();
-    }
-
-    public void setExecutionCapabilities(Collection<String> executionCapabilities) {
-        sched.setExecutionCapabilities(executionCapabilities);
-    }
-
+  
 }

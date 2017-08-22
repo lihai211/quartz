@@ -51,7 +51,14 @@ import org.terracotta.toolkit.concurrent.locks.ToolkitLock;
 import org.terracotta.toolkit.internal.ToolkitInternal;
 import org.terracotta.toolkit.internal.concurrent.locks.ToolkitLockTypeInternal;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.terracotta.toolkit.rejoin.RejoinException;
 
@@ -2095,20 +2102,5 @@ class DefaultClusteredJobStore implements ClusteredJobStore {
 
   protected TriggerFacade getTriggersFacade() {
     return this.triggerFacade;
-  }
-
-  @Override
-  public Collection<String> getExecutionCapabilitiesCollection() {
-    return Collections.emptySet();
-  }
-
-  @Override
-  public void setExecutionCapabilitiesCollection(Collection<String> executionCapabilities) {
-    // ignored for now
-  }
-
-  @Override
-  public boolean supportsExecutionCapabilities() {
-    return false;
   }
 }

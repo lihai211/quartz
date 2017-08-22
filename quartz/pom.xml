@@ -77,42 +77,42 @@
     </resources>
     
     <plugins>   
-      <!--<plugin>-->
-        <!--<groupId>org.terracotta</groupId>-->
-        <!--<artifactId>maven-forge-plugin</artifactId>-->
-        <!--<version>${maven-forge-plugin.version}</version>-->
-        <!--<executions>-->
-          <!--<execution>-->
-            <!--<id>create-manifest</id>-->
-            <!--<phase>process-resources</phase>-->
-            <!--<goals>-->
-              <!--<goal>manifest</goal>-->
-            <!--</goals>-->
-            <!--<configuration>-->
-              <!--<rootPath>${basedir}/..</rootPath>-->
-              <!--<manifestFile>${project.build.directory}/MANIFEST.MF</manifestFile>-->
-              <!--<manifestEntries>-->
-                <!--<License>Apache Software License, Version 2.0</License>-->
-                <!--<Terracotta-ProjectStatus>Supported</Terracotta-ProjectStatus>-->
-                <!--<Terracotta-Name>${project.artifactId}</Terracotta-Name>-->
-                <!--<Terracotta-Description>${project.description}</Terracotta-Description>-->
-              <!--</manifestEntries>-->
-            <!--</configuration>            -->
-          <!--</execution>-->
-          <!--<execution>-->
-            <!--<id>enforce-dependencies</id>-->
-            <!--<goals>-->
-              <!--<goal>enforceDependencies</goal>-->
-            <!--</goals>-->
-            <!--<phase>verify</phase>-->
-            <!--<configuration>-->
-              <!--<enforceGroupId>org.quartz-scheduler.internal</enforceGroupId>-->
-              <!--<enforceArtifactId>quartz-core</enforceArtifactId>-->
-              <!--<enforceVersion>${project.version}</enforceVersion>-->
-            <!--</configuration>-->
-          <!--</execution>           -->
-        <!--</executions>-->
-      <!--</plugin>-->
+      <plugin>
+        <groupId>org.terracotta</groupId>
+        <artifactId>maven-forge-plugin</artifactId>
+        <version>${maven-forge-plugin.version}</version>
+        <executions>
+          <execution>
+            <id>create-manifest</id>
+            <phase>process-resources</phase>
+            <goals>
+              <goal>manifest</goal>
+            </goals>
+            <configuration>
+              <rootPath>${basedir}/..</rootPath>
+              <manifestFile>${project.build.directory}/MANIFEST.MF</manifestFile>
+              <manifestEntries>
+                <License>Apache Software License, Version 2.0</License>
+                <Terracotta-ProjectStatus>Supported</Terracotta-ProjectStatus>
+                <Terracotta-Name>${project.artifactId}</Terracotta-Name>
+                <Terracotta-Description>${project.description}</Terracotta-Description>
+              </manifestEntries>
+            </configuration>            
+          </execution>
+          <execution>
+            <id>enforce-dependencies</id>
+            <goals>
+              <goal>enforceDependencies</goal>
+            </goals>
+            <phase>verify</phase>
+            <configuration>
+              <enforceGroupId>org.quartz-scheduler.internal</enforceGroupId>
+              <enforceArtifactId>quartz-core</enforceArtifactId>
+              <enforceVersion>${project.version}</enforceVersion>
+            </configuration>
+          </execution>           
+        </executions>
+      </plugin>
       
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -188,25 +188,25 @@
           </execution>
         </executions>
       </plugin>      
-      <!--<plugin>-->
-        <!--<groupId>org.apache.maven.plugins</groupId>-->
-        <!--<artifactId>maven-antrun-plugin</artifactId>-->
-        <!--<version>1.7</version>-->
-        <!--<executions>-->
-          <!--<execution>-->
-            <!--<id>unpack-jar-for-bundling</id>-->
-            <!--<phase>package</phase>-->
-            <!--<goals>-->
-              <!--<goal>run</goal>-->
-            <!--</goals>-->
-            <!--<configuration>-->
-              <!--<target>-->
-                <!--<unzip src="${project.build.directory}/${project.artifactId}-${project.version}.jar" dest="${project.build.outputDirectory}" />-->
-              <!--</target>-->
-            <!--</configuration>-->
-          <!--</execution>-->
-        <!--</executions>-->
-      <!--</plugin>           -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <version>1.7</version>
+        <executions>
+          <execution>
+            <id>unpack-jar-for-bundling</id>
+            <phase>package</phase>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <configuration>
+              <target>
+                <unzip src="${project.build.directory}/${project.artifactId}-${project.version}.jar" dest="${project.build.outputDirectory}" />
+              </target>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>           
       <plugin>
         <groupId>org.apache.felix</groupId>
         <artifactId>maven-bundle-plugin</artifactId>
@@ -247,29 +247,29 @@
           </execution>
         </executions>
       </plugin> 
-      <!--<plugin>-->
-        <!--<groupId>org.codehaus.gmaven</groupId>-->
-        <!--<artifactId>gmaven-plugin</artifactId>-->
-        <!--<version>${gmaven-plugin.version}</version>-->
-        <!--<executions>-->
-          <!--<execution>-->
-            <!--<id>repackage-jar</id>-->
-            <!--<phase>package</phase>-->
-            <!--<goals>-->
-              <!--<goal>execute</goal>-->
-            <!--</goals>-->
-            <!--<configuration>-->
-              <!--<source>-->
-                <!--println "repackaging the jar"-->
-                <!--def jarFile = new File(project.build.directory, "${project.artifactId}-${project.version}.jar")-->
-                <!--ant.copy(file: new File(project.build.directory, "dependency-reduced-pom.xml"),-->
-                         <!--tofile: new File(project.build.outputDirectory, "META-INF/maven/${project.groupId}/${project.artifactId}/pom.xml"))-->
-                <!--ant.jar(destfile: jarFile, basedir: new File(project.build.outputDirectory).getAbsolutePath(), manifest: new File(project.build.directory, "MANIFEST.MF"))-->
-              <!--</source>-->
-            <!--</configuration>-->
-          <!--</execution>-->
-        <!--</executions>-->
-      <!--</plugin>       -->
+      <plugin>
+        <groupId>org.codehaus.gmaven</groupId>
+        <artifactId>gmaven-plugin</artifactId>
+        <version>${gmaven-plugin.version}</version>
+        <executions>
+          <execution>
+            <id>repackage-jar</id>
+            <phase>package</phase>
+            <goals>
+              <goal>execute</goal>
+            </goals>
+            <configuration>
+              <source>
+                println "repackaging the jar"
+                def jarFile = new File(project.build.directory, "${project.artifactId}-${project.version}.jar")
+                ant.copy(file: new File(project.build.directory, "dependency-reduced-pom.xml"),
+                         tofile: new File(project.build.outputDirectory, "META-INF/maven/${project.groupId}/${project.artifactId}/pom.xml"))
+                ant.jar(destfile: jarFile, basedir: new File(project.build.outputDirectory).getAbsolutePath(), manifest: new File(project.build.directory, "MANIFEST.MF"))
+              </source>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>       
     </plugins>
   </build>
   

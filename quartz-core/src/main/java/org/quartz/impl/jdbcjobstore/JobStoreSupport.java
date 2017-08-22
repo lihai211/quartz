@@ -22,7 +22,14 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.quartz.Calendar;
 import org.quartz.Job;
@@ -95,10 +102,6 @@ public abstract class JobStoreSupport implements JobStore, Constants {
     protected String instanceId;
 
     protected String instanceName;
-
-    private Set<String> executionCapabilitiesCollection = new HashSet<>();
-
-    protected String executionCapabilities;             // comma-separated values (in order to be settable by properties)
     
     protected String delegateClassName;
 
@@ -253,56 +256,6 @@ public abstract class JobStoreSupport implements JobStore, Constants {
      */
     public void setInstanceName(String instanceName) {
         this.instanceName = instanceName;
-    }
-
-    public boolean supportsExecutionCapabilities() {
-        return true;
-    }
-
-    public Collection<String> getExecutionCapabilitiesCollection() {
-        return Collections.unmodifiableSet(executionCapabilitiesCollection);
-    }
-
-    public String getExecutionCapabilities() {
-        return executionCapabilities;
-    }
-
-    // invoked by reflection
-    // stringValue contains capabilities separated by comma
-    public void setExecutionCapabilities(String stringValue) {
-        executionCapabilitiesCollection = capabilitiesStringToCollection(stringValue);
-        executionCapabilities = stringValue;
-    }
-
-    public void setExecutionCapabilitiesCollection(Collection<String> collection) {
-        executionCapabilities = capabilitiesCollectionToString(collection);
-        executionCapabilitiesCollection = new HashSet<>(collection);
-    }
-
-    // TODO move eventually to some util class
-    public static String capabilitiesCollectionToString(Collection<String> collection) {
-        StringBuilder sb = new StringBuilder();
-        for (String executionCapability : collection) {
-            if (sb.length() > 0) {
-                sb.append(", ");
-            }
-            sb.append(executionCapability);
-        }
-        return sb.toString();
-    }
-
-    // TODO move eventually to some util class
-    public static Set<String> capabilitiesStringToCollection(String stringValue) {
-        Set<String> collection = new HashSet<>();
-        if (stringValue != null) {
-            for (String capability : stringValue.split(",")) {
-                capability = capability.trim();
-                if (!capability.isEmpty()) {
-                    collection.add(capability);
-                }
-            }
-        }
-        return collection;
     }
 
     public void setThreadPoolSize(final int poolSize) {
@@ -1005,12 +958,11 @@ public abstract class JobStoreSupport implements JobStore, Constants {
         List<TriggerKey> misfiredTriggers = new LinkedList<TriggerKey>();
         long earliestNewTime = Long.MAX_VALUE;
         // We must still look for the MISFIRED state in case triggers were left 
-        // in this state when upgrading to this version that does not support it.
+        // in this state when upgrading to this version that does not support it. 
         boolean hasMoreMisfiredTriggers =
             getDelegate().hasMisfiredTriggersInState(
                 conn, STATE_WAITING, getMisfireTime(), 
-                maxMisfiresToHandleAtATime, misfiredTriggers,
-                    getExecutionCapabilitiesCollection());
+                maxMisfiresToHandleAtATime, misfiredTriggers);
 
         if (hasMoreMisfiredTriggers) {
             getLog().info(
@@ -2889,7 +2841,7 @@ public abstract class JobStoreSupport implements JobStore, Constants {
         do {
             currentLoopCount ++;
             try {
-                List<TriggerKey> keys = getDelegate().selectTriggerToAcquire(conn, noLaterThan + timeWindow, getMisfireTime(), maxCount, getExecutionCapabilitiesCollection());
+                List<TriggerKey> keys = getDelegate().selectTriggerToAcquire(conn, noLaterThan + timeWindow, getMisfireTime(), maxCount);
                 
                 // No trigger is ready to fire yet.
                 if (keys == null || keys.size() == 0)
@@ -3285,7 +3237,7 @@ public abstract class JobStoreSupport implements JobStore, Constants {
             // misfired triggers requiring recovery.
             int misfireCount = (getDoubleCheckLockMisfireHandler()) ?
                 getDelegate().countMisfiredTriggersInState(
-                    conn, STATE_WAITING, getMisfireTime(), getExecutionCapabilitiesCollection()) :
+                    conn, STATE_WAITING, getMisfireTime()) : 
                 Integer.MAX_VALUE;
             
             if (misfireCount == 0) {
@@ -3590,13 +3542,6 @@ public abstract class JobStoreSupport implements JobStore, Constants {
                                 rcvryTrig.setJobGroup(jKey.getGroup());
                                 rcvryTrig.setMisfireInstruction(SimpleTrigger.MISFIRE_INSTRUCTION_IGNORE_MISFIRE_POLICY);
                                 rcvryTrig.setPriority(ftRec.getPriority());
-                                // let's determine required capability of the original trigger
-                                OperableTrigger originalTrig = getDelegate().selectTrigger(conn, tKey);
-                                if (originalTrig != null) {
-                                    rcvryTrig.setRequiredCapability(originalTrig.getRequiredCapability());
-                                } else {
-                                    getLog().warn("ClusterManager: original trigger '" + tKey + "' for job '" + jKey + "' does not exist. Recovering with no required capability.");
-                                }
                                 JobDataMap jd = getDelegate().selectTriggerJobDataMap(conn, tKey.getName(), tKey.getGroup());
                                 jd.put(Scheduler.FAILED_JOB_ORIGINAL_TRIGGER_NAME, tKey.getName());
                                 jd.put(Scheduler.FAILED_JOB_ORIGINAL_TRIGGER_GROUP, tKey.getGroup());

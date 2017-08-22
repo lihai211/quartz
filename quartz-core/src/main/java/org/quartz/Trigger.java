@@ -326,10 +326,4 @@ public interface Trigger extends Serializable, Cloneable, Comparable<Trigger> {
             return compare(t1.getNextFireTime(), t1.getPriority(), t1.getKey(), t2.getNextFireTime(), t2.getPriority(), t2.getKey());
         }
     }
-
-    /**
-     * Execution capability that must be possessed by a node in order to be able to acquire this trigger.
-     * If null, any node can do that.
-     */
-    String getRequiredCapability();
 }

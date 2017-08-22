@@ -20,7 +20,10 @@ package org.quartz.impl;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
-import java.util.*;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.quartz.Calendar;
 import org.quartz.JobDataMap;
@@ -942,14 +945,6 @@ public class RemoteScheduler implements Scheduler {
     public void setJobFactory(JobFactory factory) throws SchedulerException {
         throw new SchedulerException(
                 "Operation not supported for remote schedulers.");
-    }
-
-    public Collection<String> getExecutionCapabilities() throws SchedulerException {
-        return getRemoteScheduler().getExecutionCapabilities();
-    }
-
-    public void setExecutionCapabilities(Collection<String> executionCapabilities) throws SchedulerException {
-        getRemoteScheduler().setExecutionCapabilities(executionCapabilities);
     }
 
 }

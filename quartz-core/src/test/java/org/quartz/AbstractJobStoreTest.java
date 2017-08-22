@@ -15,7 +15,6 @@
  */
 package org.quartz;
 
-import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
@@ -26,12 +25,10 @@ import junit.framework.TestCase;
 import org.hamcrest.collection.IsIterableContainingInOrder;
 import org.quartz.Trigger.TriggerState;
 import org.quartz.impl.JobDetailImpl;
-import org.quartz.impl.jdbcjobstore.JdbcJobStoreTest;
 import org.quartz.impl.jdbcjobstore.JobStoreSupport;
 import org.quartz.impl.matchers.GroupMatcher;
 import org.quartz.impl.triggers.SimpleTriggerImpl;
 import org.quartz.simpl.CascadingClassLoadHelper;
-import org.quartz.simpl.RAMJobStore;
 import org.quartz.spi.*;
 
 import static org.hamcrest.beans.HasPropertyWithValue.hasProperty;
@@ -47,11 +44,7 @@ public abstract class AbstractJobStoreTest extends TestCase {
     private JobDetailImpl fJobDetail;
     private SampleSignaler fSignaler;
 
-	private static final String STORE_EXECUTION_CAPABILITY_1 = "cap1";
-	private static final String STORE_EXECUTION_CAPABILITY_2 = "cap2";
-	private static final String OTHER_EXECUTION_CAPABILITY = "cap-other";
-
-	@SuppressWarnings("deprecation")
+    @SuppressWarnings("deprecation")
     @Override
     protected void setUp() throws Exception {
         this.fSignaler = new SampleSignaler();
@@ -64,12 +57,7 @@ public abstract class AbstractJobStoreTest extends TestCase {
         this.fJobDetail = new JobDetailImpl("job1", "jobGroup1", MyJob.class);
         this.fJobDetail.setDurability(true);
         this.fJobStore.storeJob(this.fJobDetail, false);
-
-        if (this.fJobStore.supportsExecutionCapabilities()) {
-			this.fJobStore.setExecutionCapabilitiesCollection(
-					Arrays.asList(STORE_EXECUTION_CAPABILITY_1, STORE_EXECUTION_CAPABILITY_2));
-		}
-	}
+    }
 
     @Override
     protected void tearDown() {
@@ -231,120 +219,7 @@ public abstract class AbstractJobStoreTest extends TestCase {
         this.fJobStore.releaseAcquiredTrigger(trigger1);
     }
 
-	/**
-	 *  Similar to {@link #testAcquireNextTriggerBatch()}; but this one takes execution capabilities into account:
-	 *  early and trigger1 require capabilities that are present in current node, trigger2 requires non-existing execution capability.
-	 *  Trigger2 should not be returned by {@link JobStore#acquireNextTriggers} method.
-	 */
-	public void testAcquireNextTriggerBatchExecutionCapabilities() throws Exception {
-
-		boolean shouldSupportExecutionCapabilities =
-				fJobStore instanceof JdbcJobStoreTest ||
-				fJobStore instanceof RAMJobStore ||
-				fJobStore.supportsExecutionCapabilities();
-		if (!shouldSupportExecutionCapabilities) {
-			return;			// nothing to test here
-		}
-
-		long baseFireTime = System.currentTimeMillis() - 1000;
-
-		OperableTrigger early =
-				new SimpleTriggerImpl("early", "triggerGroup1", this.fJobDetail.getName(),
-						this.fJobDetail.getGroup(), new Date(baseFireTime),
-						new Date(baseFireTime + 5), 2, 2000);
-		early.setRequiredCapability(STORE_EXECUTION_CAPABILITY_1);
-		OperableTrigger trigger1 =
-				new SimpleTriggerImpl("trigger1", "triggerGroup1", this.fJobDetail.getName(),
-						this.fJobDetail.getGroup(), new Date(baseFireTime + 200000),
-						new Date(baseFireTime + 200005), 2, 2000);
-		trigger1.setRequiredCapability(STORE_EXECUTION_CAPABILITY_2);
-		OperableTrigger trigger2 =
-				new SimpleTriggerImpl("trigger2", "triggerGroup1", this.fJobDetail.getName(),
-						this.fJobDetail.getGroup(), new Date(baseFireTime + 210000),
-						new Date(baseFireTime + 210005), 2, 2000);
-		trigger2.setRequiredCapability(OTHER_EXECUTION_CAPABILITY);
-		OperableTrigger trigger3 =
-				new SimpleTriggerImpl("trigger3", "triggerGroup1", this.fJobDetail.getName(),
-						this.fJobDetail.getGroup(), new Date(baseFireTime + 220000),
-						new Date(baseFireTime + 220005), 2, 2000);
-		OperableTrigger trigger4 =
-				new SimpleTriggerImpl("trigger4", "triggerGroup1", this.fJobDetail.getName(),
-						this.fJobDetail.getGroup(), new Date(baseFireTime + 230000),
-						new Date(baseFireTime + 230005), 2, 2000);
-		OperableTrigger trigger10 =
-				new SimpleTriggerImpl("trigger10", "triggerGroup2", this.fJobDetail.getName(),
-						this.fJobDetail.getGroup(), new Date(baseFireTime + 500000),
-						new Date(baseFireTime + 700000), 2, 2000);
-
-		early.computeFirstFireTime(null);
-		early.setMisfireInstruction(Trigger.MISFIRE_INSTRUCTION_IGNORE_MISFIRE_POLICY);
-		trigger1.computeFirstFireTime(null);
-		trigger2.computeFirstFireTime(null);
-		trigger3.computeFirstFireTime(null);
-		trigger4.computeFirstFireTime(null);
-		trigger10.computeFirstFireTime(null);
-		this.fJobStore.storeTrigger(early, false);
-		this.fJobStore.storeTrigger(trigger1, false);
-		this.fJobStore.storeTrigger(trigger2, false);
-		this.fJobStore.storeTrigger(trigger3, false);
-		this.fJobStore.storeTrigger(trigger4, false);
-		this.fJobStore.storeTrigger(trigger10, false);
-
-		long firstFireTime = new Date(trigger1.getNextFireTime().getTime()).getTime();
-
-		List<OperableTrigger> acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 10000, 4, 1000L);
-		assertEquals(1, acquiredTriggers.size());
-		assertEquals(early.getKey(), acquiredTriggers.get(0).getKey());
-		this.fJobStore.releaseAcquiredTrigger(early);
-
-		acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 10000, 4, 205000);
-		assertEquals(2, acquiredTriggers.size());
-		assertEquals(early.getKey(), acquiredTriggers.get(0).getKey());
-		assertEquals(trigger1.getKey(), acquiredTriggers.get(1).getKey());
-		this.fJobStore.releaseAcquiredTrigger(early);
-		this.fJobStore.releaseAcquiredTrigger(trigger1);
-
-		this.fJobStore.removeTrigger(early.getKey());
-
-		acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 10000, 5, 100000L);
-		assertEquals(3, acquiredTriggers.size());
-		assertEquals(trigger1.getKey(), acquiredTriggers.get(0).getKey());
-		// trigger2 should not be present because of execution capability
-		assertEquals(trigger3.getKey(), acquiredTriggers.get(1).getKey());
-		assertEquals(trigger4.getKey(), acquiredTriggers.get(2).getKey());
-		this.fJobStore.releaseAcquiredTrigger(trigger1);
-		this.fJobStore.releaseAcquiredTrigger(trigger3);
-		this.fJobStore.releaseAcquiredTrigger(trigger4);
-
-		acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 10000, 6, 100000L);
-		assertEquals(3, acquiredTriggers.size());
-		assertEquals(trigger1.getKey(), acquiredTriggers.get(0).getKey());
-		// trigger2 should not be present because of execution capability
-		assertEquals(trigger3.getKey(), acquiredTriggers.get(1).getKey());
-		assertEquals(trigger4.getKey(), acquiredTriggers.get(2).getKey());
-		this.fJobStore.releaseAcquiredTrigger(trigger1);
-		this.fJobStore.releaseAcquiredTrigger(trigger3);
-		this.fJobStore.releaseAcquiredTrigger(trigger4);
-
-		acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 1, 5, 0L);
-		assertEquals(1, acquiredTriggers.size());
-		assertEquals(trigger1.getKey(), acquiredTriggers.get(0).getKey());
-		this.fJobStore.releaseAcquiredTrigger(trigger1);
-
-		acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 250, 5, 19999L);
-		assertEquals(1, acquiredTriggers.size());
-		assertEquals(trigger1.getKey(), acquiredTriggers.get(0).getKey());
-		// trigger2 should not be present because of execution capability
-		this.fJobStore.releaseAcquiredTrigger(trigger1);
-		this.fJobStore.releaseAcquiredTrigger(trigger3);
-
-		acquiredTriggers = this.fJobStore.acquireNextTriggers(firstFireTime + 150, 5, 5000L);
-		assertEquals(1, acquiredTriggers.size());
-		assertEquals(trigger1.getKey(), acquiredTriggers.get(0).getKey());
-		this.fJobStore.releaseAcquiredTrigger(trigger1);
-	}
-
-	@SuppressWarnings("deprecation")
+    @SuppressWarnings("deprecation")
     public void testTriggerStates() throws Exception {
         OperableTrigger trigger = 
             new SimpleTriggerImpl("trigger1", "triggerGroup1", this.fJobDetail.getName(), this.fJobDetail.getGroup(), 
